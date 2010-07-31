@@ -55,7 +55,7 @@ class MiniHTTPD_Logger
 		$logger = new MHTTPD_Logger($type);
 		
 		if ($type == 'access') {
-			if (MHTTPD_Logger::$config['enabled'] && empty(MHTTPD_Logger::$buffers['access'])) {
+			if (MHTTPD_Logger::$config['enabled'] && empty(MHTTPD_Logger::$buffers['access']['file'])) {
 				MHTTPD_Logger::$buffers['access']['file'] = MHTTPD_Logger::$config['logpath'].'mhttpd_access.log';
 			}
 		}
@@ -118,7 +118,7 @@ class MiniHTTPD_Logger
 		// Get the formatted log line
 		$line = $this->getFormatted()."\n";
 		cecho($line);
-				
+		
 		if (MHTTPD_Logger::$config['enabled']) {
 		
 			// Buffer the current log line
