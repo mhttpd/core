@@ -1,0 +1,299 @@
+<?php
+/**
+ * The base class for the MiniHTTPD request and response classes.
+ * 
+ * This class contains common methods for handling both requests and responses,
+ * key among which is the parser. Note that the class needs to be able to handle
+ * both server client and FCGI client messages.
+ *
+ * @package    MiniHTTPD
+ * @author     MiniHTTPD Team
+ * @copyright  (c) 2010 MiniHTTPD Team
+ * @license    BSD revised
+ */
+class MiniHTTPD_Message	
+{	
+	// ------ Class variables and methods -------------------------------------------
+	
+	/**
+	 * List of HTTP/1.1 response codes and reasons
+	 * @var array
+	 */
+	protected static $codes = array(
+	
+		// Informational 1xx
+		100 => 'Continue',
+		101 => 'Switching Protocols',
+
+		// Success 2xx
+		200 => 'OK',
+		201 => 'Created',
+		202 => 'Accepted',
+		203 => 'Non-Authoritative Information',
+		204 => 'No Content',
+		205 => 'Reset Content',
+		206 => 'Partial Content',
+		207 => 'Multi-Status',
+
+		// Redirection 3xx
+		300 => 'Multiple Choices',
+		301 => 'Moved Permanently',
+		302 => 'Found', // 1.1
+		303 => 'See Other',
+		304 => 'Not Modified',
+		305 => 'Use Proxy',
+		307 => 'Temporary Redirect',
+
+		// Client Error 4xx
+		400 => 'Bad Request',
+		401 => 'Unauthorized',
+		402 => 'Payment Required',
+		403 => 'Forbidden',
+		404 => 'Not Found',
+		405 => 'Method Not Allowed',
+		406 => 'Not Acceptable',
+		407 => 'Proxy Authentication Required',
+		408 => 'Request Timeout',
+		409 => 'Conflict',
+		410 => 'Gone',
+		411 => 'Length Required',
+		412 => 'Precondition Failed',
+		413 => 'Request Entity Too Large',
+		414 => 'Request-URI Too Long',
+		415 => 'Unsupported Media Type',
+		416 => 'Requested Range Not Satisfiable',
+		417 => 'Expectation Failed',
+		422 => 'Unprocessable Entity',
+		423 => 'Locked',
+		424 => 'Failed Dependency',
+
+		// Server Error 5xx
+		500 => 'Internal Server Error',
+		501 => 'Not Implemented',
+		502 => 'Bad Gateway',
+		503 => 'Service Unavailable',
+		504 => 'Gateway Timeout',
+		505 => 'HTTP Version Not Supported',
+		507 => 'Insufficient Storage',
+		509 => 'Bandwidth Limit Exceeded'
+	);
+	
+	/**
+	 * Returns a formatted HTTP status line.
+	 *
+	 * @param   integer  the response code
+	 * @return  string   the formatted status line
+	 */
+	public static function httpStatus($code)
+	{
+		return isset(MHTTPD_Message::$codes[$code]) ? MHTTPD::PROTOCOL.' '.MHTTPD_Message::httpCode($code) : false;
+	}
+	
+	/**
+	 * Returns information about a response code.
+	 *
+	 * @param   integer  the response code
+	 * @param   bool     only return the response reason?
+	 * @return  string   the requested information
+	 */
+	public static function httpCode($code, $reasonOnly=false)
+	{
+		if (!isset(MHTTPD_Message::$codes[$code])) {
+			return false;
+		} else {
+			$ret = '';
+			if (!$reasonOnly) {$ret .= $code.' ';}
+			$ret .= MHTTPD_Message::$codes[$code];
+			return $ret;
+		}
+	}
+
+	// ------ Instance variables and methods ----------------------------------------
+
+	/**
+	 * Should debugging output be enabled? 
+	 * @var bool
+	 */
+	public $debug = true;
+
+	/**
+	 * The raw message input, stored locally when debugging only.
+	 * @var string
+	 */
+	protected $input = '';
+	
+	/**
+	 * The list of parsed message headers. 
+	 * @var array 
+	 */
+	protected $headers = array();
+	
+	/**
+	 * The parsed message body.
+	 * @var string
+	 */
+	protected $body = '';
+	
+	/**
+	 * Parses the given string into a list of message headers and a message body,
+	 * then stores the results locally.
+	 *
+	 * This method works slightly differently depending on whether the message is
+	 * a request or a response from an FCGI process, both in terms of how the info
+	 * is parsed and how it is then stored for later processing. 
+	 *
+	 * Multiple header values are supported as follows:
+	 *
+	 * - If the header entry is an array, new values will be added to the array
+	 *   (usually for sending later as separate header lines)
+	 * - If the header entry is a string, new values will be appended to a
+	 *   comma-separated list.
+	 *
+	 * @param   string  the message to be parsed
+	 * @param   bool    should the header names be lowercased?
+	 * @return  bool    true on success
+	 */
+	public function parse($string, $lowercase=true)
+	{
+		if ($this->debug) {$this->input .= $string;}
+		
+		// Split the header and body blocks
+		if ($pos = strpos($string, "\r\n\r\n")) {
+			$head = substr($string, 0, $pos + 4);
+			$this->body = substr($string, $pos + 4);
+		} else {
+			$head = $string;
+		}
+		
+		// Start parsing the headers
+		$str = strtok($head, "\n");
+		$h = null;
+
+		while ($str !== false) {
+		
+			// The line is empty, so skip it
+			if ($h && trim($str) == '') {
+				$h = false;
+				continue;
+			}
+			
+			// Parse the info/status line
+			if ($h !== false && strpos($str, 'HTTP/') !== false) {
+				$h = true;
+				if ($this instanceof MHTTPD_Response) {
+					$this->status = trim($str);
+				} else {
+					$info = explode(' ', trim($str));
+					$this->info = array(
+						'request' => trim($str),
+						'method' => $info[0],
+						'url' => $info[1],
+						'url_parsed' => parse_url(str_replace('../', '', $info[1])),
+						'protocol' => $info[2],
+					);
+					
+					// Get the initial path info
+					$this->info['path_parsed'] = pathinfo($this->info['url_parsed']['path']);
+				}
+								
+			// Parse header values
+			} elseif ($h !== false && strpos($str, ':') !== false) {
+				$h = true;
+				list($headername, $headervalue) = explode(':', trim($str), 2);
+				if ($lowercase) {$headername = strtolower($headername);}
+				$headervalue = ltrim($headervalue);
+				
+				if ($headername == 'Status') {
+					
+					// Handle any Status headers from FCGI
+					$this->status = MHTTPD::PROTOCOL.' '.$headervalue;
+					list($this->code, $this->info['status_message']) = explode(' ', $headervalue, 2);
+				
+				} else {
+				
+					// Add or append new header values
+					if (!empty($this->headers[$headername]) && is_array($this->headers[$headername])) {
+						$this->headers[$headername][] = $headervalue;
+					} elseif (!empty($this->headers[$headername])) {
+						$this->headers[$headername] .= ','.$headervalue;
+					} else {
+						$this->headers[$headername] = $headervalue;
+					}
+				}
+			}
+						
+			// Continue parsing
+			$str = strtok("\n");
+		}
+		
+		return true;
+	}
+	
+	/**
+	 * Determines whether a header by the given name exists.
+	 *
+	 * @param   string  the header name
+	 * @return  bool
+	 */
+	public function hasHeader($name)
+	{
+		return !empty($this->headers[$name]);
+	}
+
+	/**
+	 * Returns the stored header value for the given header name.
+	 *
+	 * @param   string  the header name
+	 * @return  string  the header value, or blank if none exists
+	 */
+	public function getHeader($name)
+	{
+		return empty($this->headers[$name]) ? '' : $this->headers[$name];
+	}
+
+	/**
+	 * Returns the list of stored headers.
+	 *
+	 * @return  array  the stored headers
+	 */
+	public function getHeaders()
+	{
+		return $this->headers;
+	}
+	
+	/**
+	 * Determines whether the current object includes a message body.
+	 *
+	 * @return  bool
+	 */
+	public function hasBody()
+	{
+		return !empty($this->body);
+	}
+	
+	/**
+	 * Returns the message body either as a string or as a stream resource,
+	 * depending on how it has been stored locally.
+	 *
+	 * @return  string|resource
+	 */
+	public function getBody()
+	{
+		if ($this->hasStream()) {
+			return $this->stream;
+		} else {
+			return $this->body;
+		}
+	}
+
+	/**
+	 * Returns the unparsed input.
+	 *
+	 * @return  string  the raw input
+	 */
+	public function getInput()
+	{
+		return $this->input;
+	}
+	
+} // End MiniHTTPD_Message

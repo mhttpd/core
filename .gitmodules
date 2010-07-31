@@ -1,0 +1,3 @@
+[submodule "www/docs"]
+	path = www/docs
+	url = git://github.com/mhttpd/api-docs.git
