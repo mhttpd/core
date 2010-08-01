@@ -170,24 +170,32 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	}
 
 	/**
-	 * Rewrites the request URL to allow transparent virtual to real path mapping.
+	 * Rewrites the path element of the request URL to allow transparent virtual 
+	 * to real path mapping.
+	 *
+	 * This is especially useful for fixing issues with links given as relative 
+	 * paths where the browser will automatically add the base path. Any virtual
+	 * path elements (i.e. ones that can't be found in the docroot) should be 
+	 * rewritten in this case usually to just '/'.
 	 *
 	 * @param   string  the regex search pattern
 	 * @param   string  the replacement value
-	 * @param   bool    should $search be stored as a virtual location?
+	 * @param   bool    should $search be stored as the new base path?
 	 * @return  MiniHTTPD_Request  this instance
 	 */
-	public function rewriteUrlPath($search, $replace='', $isLocation)
+	public function rewriteUrlPath($search, $replace='', $isBasePath)
 	{
 		if ($this->debug) {cecho("Rewriting URL Path: ({$search} -> {$replace})");} 
-		$url = preg_replace("|{$search}|", $replace, $this->info['url_parsed']['path']);
-		$this->info['path_parsed'] = pathinfo($url);
-		$this->info['url_parsed']['path'] = $url;
-		if ($isLocation) {
-			if ($this->debug) {cecho(' ... added as location');} 
-			$this->info['location'] = $search;
+		if (preg_match("|{$search}|", $this->info['url_parsed']['path'], $matches)) {
+			$url = preg_replace("|{$search}|", $replace, $this->info['url_parsed']['path']);
+			$this->info['path_parsed'] = pathinfo($url);
+			$this->info['url_parsed']['path'] = $url;
+			if ($isBasePath) {
+				if ($this->debug) {cecho(' ... added as base path');}
+				$this->info['base_path'] = $matches[0];
+			}
+			if ($this->debug) {cecho(PHP_EOL);}
 		}
-		if ($this->debug) {cecho(PHP_EOL);}
 		
 		return $this;
 	}
@@ -388,15 +396,15 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	/**
 	 * Returns the calculated script name for the request.
 	 *
-	 * This may be modified depending on whether a virtual location is set for
-	 * the request to allow internal URLs to be written properly.
+	 * This may be modified depending on whether a virtual path is set for the
+	 * request to allow internal links to be written properly.
 	 *
 	 * @return  string  the script name
 	 */
 	public function getScriptName()
 	{
 		$ret = $this->getFilename();
-		if (isset($this->info['location'])) {$ret = $this->info['location'].$ret;}
+		if (isset($this->info['base_path'])) {$ret = $this->info['base_path'].$ret;}
 		return str_replace('//', '/', $ret);
 	}
 		
