@@ -195,8 +195,9 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	/**
 	 * Determines whether the client supports a particular HTTP option.
 	 *
-	 * This method searches the 'Accepts-*' headers for the given value, e,g, to
-	 * test whether the client supports gzip encoding: accepts('encoding', 'gzip').
+	 * This method searches the 'Accept' (if $name is null) or 'Accepts-*' headers 
+	 * for the given value, e,g, to test whether the client supports gzip encoding:
+	 * accepts('encoding', 'gzip').
 	 *
 	 * @param   string  the suffix for any 'Accepts-*' headers
 	 * @param   string  the option value
@@ -204,7 +205,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 */
 	public function accepts($name, $value)
 	{
-		$header = 'accept-'.$name;
+		$header = $name == null ? 'accept' : 'accept-'.$name;
 		return !empty($this->headers[$header]) && stripos($this->headers[$header], $value) !== false;
 	}
 	
