@@ -191,7 +191,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 			$this->info['url_parsed']['path'] = $url;
 			if ($isBasePath) {
 				if ($this->debug) {cecho(' ... added as base path');}
-				$this->info['base_path'] = $matches[0];
+				$this->info['url_parsed']['base_path'] = $matches[0];
 			}
 			if ($this->debug) {cecho(PHP_EOL);}
 		}
@@ -396,14 +396,16 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 * Returns the calculated script name for the request.
 	 *
 	 * This may be modified depending on whether a virtual path is set for the
-	 * request to allow internal links to be written properly.
+	 * request to allow internal links to be written properly. The resulting value
+	 * is used to set both $_SERVER['SCRIPT_NAME'] and $_SERVER['PHP_SELF'] for
+	 * FastCGI requests.
 	 *
 	 * @return  string  the script name
 	 */
 	public function getScriptName()
 	{
 		$ret = $this->getFilename();
-		if (isset($this->info['base_path'])) {$ret = $this->info['base_path'].$ret;}
+		if (isset($this->info['url_parsed']['base_path'])) {$ret = $this->info['url_parsed']['base_path'].$ret;}
 		return str_replace('//', '/', $ret);
 	}
 		
