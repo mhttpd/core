@@ -29,12 +29,11 @@ class MiniHTTPD_Request extends MHTTPD_Message
 		// Protect against missing data
 		$needed_parts = array('nonce'=>1, 'nc'=>1, 'cnonce'=>1, 'qop'=>1, 'username'=>1, 'uri'=>1, 'response'=>1);
 		$data = array();
-		$keys = implode('|', array_keys($needed_parts));
 		
 		// Parse the digest text
 		$entries = explode(',', str_ireplace('digest ', '', $string));
 		foreach ($entries as $entry) {
-			$e = explode('=', trim($entry));
+			$e = explode('=', trim($entry), 2);
 			$e[1] = trim(str_replace('"', '', $e[1]));
 			if (!empty($e[1])) {
 				$data[$e[0]] = $e[1];
