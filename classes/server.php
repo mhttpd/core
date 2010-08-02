@@ -20,7 +20,7 @@ class MiniHTTPD_Server
 	/**
 	 * Current software version.
 	 */
-	const VERSION = '0.2';
+	const VERSION = '0.3';
 	
 	/**
 	 * Supported HTTP protocol version.

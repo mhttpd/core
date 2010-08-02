@@ -122,6 +122,7 @@ class MiniFCGI_Client
 		if ($this->debug) {
 			$p['X_PID'] = MFCGI::getPID($this->process);
 			$p['X_SCORE'] = MFCGI::getScoreboard(true);
+			$p['X_REQUEST'] = print_r($request, true);
 		}
 
 		// For POST requests add content details
