@@ -106,9 +106,13 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	 */	
 	public function asArray()
 	{
+		$headers = array();
+		foreach ($this->headers as $key=>$val) {
+			if ($val != '') {$headers[$key] = $val;}
+		}
 		$ret = array(
 			'status' => $this->status,
-			'headers' => $this->headers,
+			'headers' => $headers,
 			'body' => $this->body,
 		);
 		if ($this->debug) {
@@ -152,7 +156,7 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	}
 
 	/**
-	 * Sets the response status code.
+	 * Sets the response status code and http status line.
 	 *
 	 * @param   integer  status code
 	 * @return  MiniHTTPD_Response  this instance
@@ -164,6 +168,23 @@ class MiniHTTPD_Response extends MHTTPD_Message
 		return $this;
 	}
 
+	/**
+	 * Parses a http status line for code and message (e.g. from FCGI response).
+	 *
+	 * @param   string  status line
+	 * @return  MiniHTTPD_Response  this instance
+	 */	
+	public function parseHttpStatus($status=null)
+	{
+		if ($status != null && strpos($status, 'HTTP/') !== false) {
+			$this->status = $status;
+		}
+		if ($this->status != '' && strpos($this->status, 'HTTP/') !== false) {
+			list($proto, $this->code, $this->info['status_message']) = explode(' ', $this->status, 3);
+		}
+		return $this;
+	}
+	
 	/**
 	 * Determines whether this is an error response.
 	 * 

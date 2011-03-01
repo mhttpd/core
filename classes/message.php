@@ -16,7 +16,7 @@ class MiniHTTPD_Message
 	// ------ Class variables and methods -------------------------------------------
 	
 	/**
-	 * List of HTTP/1.1 response codes and reasons
+	 * List of HTTP/1.1 response codes and messages
 	 * @var array
 	 */
 	protected static $codes = array(
@@ -93,16 +93,16 @@ class MiniHTTPD_Message
 	 * Returns information about a response code.
 	 *
 	 * @param   integer  the response code
-	 * @param   bool     only return the response reason?
+	 * @param   bool     only return the response message?
 	 * @return  string   the requested information
 	 */
-	public static function httpCode($code, $reasonOnly=false)
+	public static function httpCode($code, $messageOnly=false)
 	{
 		if (!isset(MHTTPD_Message::$codes[$code])) {
 			return false;
 		} else {
 			$ret = '';
-			if (!$reasonOnly) {$ret .= $code.' ';}
+			if (!$messageOnly) {$ret .= $code.' ';}
 			$ret .= MHTTPD_Message::$codes[$code];
 			return $ret;
 		}
@@ -114,7 +114,7 @@ class MiniHTTPD_Message
 	 * Should debugging output be enabled? 
 	 * @var bool
 	 */
-	public $debug = true;
+	public $debug = false;
 
 	/**
 	 * The raw message input, stored locally when debugging only.
@@ -133,6 +133,12 @@ class MiniHTTPD_Message
 	 * @var string
 	 */
 	protected $body = '';
+
+	/**
+	 * Has the whole header block been parsed?
+	 * @var bool
+	 */
+	protected $hasHeaderBlock = false;
 	
 	/**
 	 * Parses the given string into a list of message headers and a message body,
@@ -157,14 +163,21 @@ class MiniHTTPD_Message
 	{
 		if ($this->debug) {$this->input .= $string;}
 		
+		// If headers have already been parsed, append $string to body
+		if ($this->hasHeaderBlock) {
+			$this->body .= $string;
+			return true;
+		}
+
 		// Split the header and body blocks
 		if ($pos = strpos($string, "\r\n\r\n")) {
 			$head = substr($string, 0, $pos + 4);
 			$this->body = substr($string, $pos + 4);
+			$this->hasHeaderBlock = true;
 		} else {
 			$head = $string;
 		}
-		
+
 		// Start parsing the headers
 		$str = strtok($head, "\n");
 		$h = null;
@@ -181,8 +194,14 @@ class MiniHTTPD_Message
 			if ($h !== false && strpos($str, 'HTTP/') !== false) {
 				$h = true;
 				if ($this instanceof MHTTPD_Response) {
+					
+					// Response: process status
 					$this->status = trim($str);
+					$this->parseHttpStatus();
+
 				} else {
+					
+					// Request: process info
 					$info = explode(' ', trim($str));
 					$this->info = array(
 						'request' => trim($str),
@@ -203,11 +222,11 @@ class MiniHTTPD_Message
 				if ($lowercase) {$headername = strtolower($headername);}
 				$headervalue = ltrim($headervalue);
 				
-				if ($headername == 'Status') {
+				if ($headername == 'Status' && ($this instanceof MHTTPD_Response)) {
 					
 					// Handle any Status headers from FCGI
 					$this->status = MHTTPD::PROTOCOL.' '.$headervalue;
-					list($this->code, $this->info['status_message']) = explode(' ', $headervalue, 2);
+					$this->parseHttpStatus();
 				
 				} else {
 				
@@ -221,11 +240,11 @@ class MiniHTTPD_Message
 					}
 				}
 			}
-						
+
 			// Continue parsing
 			$str = strtok("\n");
 		}
-		
+
 		return true;
 	}
 	
@@ -269,6 +288,16 @@ class MiniHTTPD_Message
 	public function hasBody()
 	{
 		return !empty($this->body);
+	}
+
+	/**
+	 * Determines whether the current object has finished parsing headers.
+	 *
+	 * @return  bool
+	 */
+	public function hasAllHeaders()
+	{
+		return $this->hasHeaderBlock;
 	}
 	
 	/**
