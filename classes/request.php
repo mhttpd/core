@@ -184,19 +184,54 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 */
 	public function rewriteUrlPath($search, $replace='', $isBasePath)
 	{
-		if ($this->debug) {cecho("Rewriting URL Path: ({$search} -> {$replace})");} 
+		if ($this->debug) {cecho("Rewriting URL Path: ({$this->info['url_parsed']['path']} | {$search} -> {$replace} | ");} 
+
 		if (preg_match("|{$search}|", $this->info['url_parsed']['path'], $matches)) {
 			$url = preg_replace("|{$search}|", $replace, $this->info['url_parsed']['path']);
 			$this->info['path_parsed'] = pathinfo($url);
 			$this->info['url_parsed']['path'] = $url;
+			if ($this->debug) {cecho($url.')'.PHP_EOL);}
+			
 			if ($isBasePath) {
-				if ($this->debug) {cecho(' ... added as base path');}
 				$this->info['url_parsed']['base_path'] = $matches[0];
+				if ($this->debug) {cecho(' ... added as base path ('.$matches[0].')'.PHP_EOL);}
 			}
-			if ($this->debug) {cecho(PHP_EOL);}
+		} else {
+			if ($this->debug) {cecho('nothing replaced)'.PHP_EOL);}
 		}
 		
 		return $this;
+	}
+
+	/**
+	 * Tests whether a request URL needs a trailing slash (mainly for redirecting
+	 * to a directory with '301 Moved Permanently'). If a URL is not passed as a 
+	 * parameter, the current request URL will be tested instead.
+	 *
+	 * @param   string  URL to be tested
+	 * @return  bool	  true if trailing slash is needed
+	 */	
+	public function needsTrailingSlash($url=null)
+	{
+		if (!$url) {$url = $this->getUrl();}
+		
+		// Only test if a trailing slash isn't already present
+		if (substr($url, -1) != '/') {
+		
+			// Parse the URL and check for any files in the path
+			$i = parse_url($url);
+			$p = pathinfo($i['path']);
+			$d = pathinfo($p['dirname']);
+			
+			if (!isset($p['extension']) && !isset($d['extension'])) {
+				
+				// The URL is a directory, so we need a trailing slash
+				return true;
+			}
+		}
+		
+		// No trailing slash is needed
+		return false;
 	}
 	
 	/**
@@ -405,7 +440,9 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	public function getScriptName()
 	{
 		$ret = $this->getFilename();
-		if (isset($this->info['url_parsed']['base_path'])) {$ret = $this->info['url_parsed']['base_path'].$ret;}
+		if (isset($this->info['url_parsed']['base_path'])) {
+			$ret = $this->info['url_parsed']['base_path'].$ret;
+		}
 		return str_replace('//', '/', $ret);
 	}
 		

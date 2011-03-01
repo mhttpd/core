@@ -169,6 +169,12 @@ class MiniHTTPD_Client
 				return false;
 			}
 		}
+
+		// If the request is for a directory, add a trailing slash if needed
+		if ($this->request->needsTrailingSlash($url)) {
+			$this->sendRedirect(MHTTPD::getBaseUrl().$url.'/', 301);
+			return true;
+		}
 		
 		// Set the docroot, handling any virtual-to-real mappings
 		if (preg_match('|^/api-docs/?|', $url, $match)) {
@@ -850,10 +856,6 @@ class MiniHTTPD_Client
 	protected function getAPIDocsRoot($url)
 	{
 		if ($this->checkAuthorization('server admin', MHTTPD::getAdminInfo())) {
-			if (substr($url, -1) != '/') {
-				$this->sendRedirect(MHTTPD::getBaseUrl().'/api-docs/', 301);
-				return true;
-			}
 			if (!MHTTPD::allowAPIDocs()) {
 				if ($this->debug) {cecho("API Docs page is not allowed\n");}
 				$this->sendError(403, 'You are not authorized to view this page, or the page is not configured for public access.');
