@@ -142,10 +142,12 @@ class MiniFCGI_Client
 		);
 		
 		if ($this->debug) {
-			cecho('Added FCGI request: '.$request->getUrl()."\n");
+			cecho('Added FCGI request: '.$request->getUrl().PHP_EOL.'--> '.$request->getFilepath().PHP_EOL);
+			#cprint_r($this->request);
+			#cprint_r($request->getFileInfo());
 		}
 		
-		// Allow chainable
+		// Allow chaining
 		return $this;
 	}
 	
@@ -295,6 +297,11 @@ class MiniFCGI_Client
 		// Any problems? Check the End Request codes
 		if ($request['ID'] != 0 && !$response->hasBody() && $record->isType(MFCGI::END_REQUEST)) {
 			trigger_error('FCGI returned no content, request is ended (codes: '.$record->getEndCodes().')', E_USER_NOTICE);
+			if ($response->hasErrorCode()) {
+				$response->append(print_r($response, true));
+			} else {
+				$response->append('Nothing to see here ...');
+			}
 		}
 		
 		// Everything received OK
