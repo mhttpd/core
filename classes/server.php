@@ -318,6 +318,16 @@ class MiniHTTPD_Server
 	}
 
 	/**
+	 * Determines whether the Extras private server directory is accessible or not.
+	 *
+	 * @return  bool  display on true
+	 */		
+	public static function allowExtrasDir()
+	{
+		return MHTTPD::$config['Admin']['allow_extras_dir'];
+	}
+	
+	/**
 	 * Returns the configured user information for the server administrator.
 	 *
 	 * @return  array|false  admin username & password, or error

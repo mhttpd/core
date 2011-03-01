@@ -174,6 +174,9 @@ class MiniHTTPD_Client
 		if (preg_match('|^/api-docs/?|', $url, $match)) {
 			$docroot = $this->getAPIDocsRoot($match[0]);
 			if (is_bool($docroot)) {return $docroot;}
+		} elseif (preg_match('|^/extras/?|', $url, $match)) {
+			$docroot = $this->getExtrasRoot($url);
+			if (is_bool($docroot)) {return $docroot;}		
 		} else {
 			$docroot = MHTTPD::getDocroot();
 		}
@@ -858,6 +861,29 @@ class MiniHTTPD_Client
 			}
 			$docroot = MHTTPD::getServerDocroot().'docs'.DIRECTORY_SEPARATOR;
 			$this->request->rewriteUrlPath($url, '/', true);
+			return $docroot;
+		}
+		
+		return false;
+	}
+
+	/**
+	 * Returns the path to the Extras directory in the server's private docroot.
+	 *
+	 * @param   string  the requested url
+	 * @return  string|bool  the directory path, false if not authorized,
+	 *                       true if the request needs to be redirected
+	 */
+	protected function getExtrasRoot($url)
+	{
+		if ($this->checkAuthorization('server admin', MHTTPD::getAdminInfo())) {
+			if (!MHTTPD::allowExtrasDir()) {
+				if ($this->debug) {cecho("Access to the Extras directory is not allowed\n");}
+				$this->sendError(403, 'You are not authorized to view this page, or the page is not configured for public access.');
+				return false;
+			}
+			$docroot = MHTTPD::getServerDocroot().'extras'.DIRECTORY_SEPARATOR;
+			$this->request->rewriteUrlPath('^/extras/?', '/', true);
 			return $docroot;
 		}
 		
