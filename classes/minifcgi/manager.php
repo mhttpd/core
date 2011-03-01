@@ -391,9 +391,10 @@ class MiniFCGI_Manager
 		// Set environment variables
 		putenv('PHP_FCGI_MAX_REQUESTS='.MFCGI::$config['max_requests']);
 		putenv('FCGI_WEB_SERVER_ADDRS='.MFCGI::$config['allow_from']);
+		putenv('PHP_INI_SCAN_DIR='.EXEPATH.'bin\php\php.d');
 		
 		// Launch the new process in the background
-		$cmd = '"'.EXEPATH.'bin\php\php-cgi.exe" -b '.$bind.' -c "'.EXEPATH.'bin\php\php-cgi.ini"';
+		$cmd = '"'.EXEPATH.'bin\php\php-fcgi.exe" -b '.$bind.' -c "'.EXEPATH.'bin\php\php-fcgi.ini"';
 		$wshShell = new COM('WScript.Shell');
 		$oExec = $wshShell->Run($cmd, 0, false);
 		sleep(1); // to be safe
