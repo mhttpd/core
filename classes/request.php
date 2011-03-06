@@ -51,13 +51,25 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 * @var array
 	 */
 	protected $info = array();
+
+	/**
+	 * The server docroot accessible to this request. 
+	 * @var string
+	 */
+	protected $docroot;
 	
 	/**
 	 * The absolute path to the requested file. 
 	 * @var string
 	 */
 	protected $filepath;
-	
+
+	/**
+	 * Pre-parsed information about the requested file. 
+	 * @var array
+	 */
+	protected $fileInfo = array();
+		
 	/**
 	 * Returns the stored request information as an array.
 	 *
@@ -109,65 +121,89 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 * Returns an array of information about the requested file.
 	 *
 	 * @param   string  the docroot in which to search for the requested file
-	 * @return  array   a normalized version of the pathinfo() output.
+	 * @param   bool    should the stored values be refreshed?
+	 * @return  array   the pathinfo() output of the requested file
 	 */
-	public function getFileInfo($docroot=null)
+	public function getFileInfo($dcroot=null, $refresh=false)
 	{
-		if (!$docroot) {$docroot = MHTTPD::getDocroot();}
+		// Use the default, request or passed docroot?
+		if (!$dcroot && !$this->docroot) {		
+			$docroot = MHTTPD::getDocroot();
+		} elseif (!$dcroot) {
+			$docroot = $this->docroot;
+		} else {
+			$docroot = $dcroot;
+		}		
+		
+		// Initialize
 		$DS = DIRECTORY_SEPARATOR;
-		$info = null;
+		$info = array();
 		
 		// Make sure we have uncached info
-		clearstatcache();
+		if ($refresh || empty($this->fileInfo)) {
+			if ($this->debug) {cecho("Docroot: $docroot\n");}
+			clearstatcache();
+		}
 		
-		if (!empty($this->filepath)) {
+		if (!$refresh && !empty($this->fileInfo)) {
 			
-			// If the last attempt was successful use that result
+			// Use the previously stored values
+			return $this->fileInfo;
+		
+		} elseif (!empty($this->filepath)) {
+			
+			// Parse the file path found in the last successful attempt
+			if ($this->debug) {cecho("Using file: {$this->filepath}\n");}
 			$info = pathinfo($this->filepath);
 			
-		} else {
+		} elseif (!empty($this->info['url_parsed'])) {
 
-			// Start grokking the parsed path
-			if (!empty($this->info['url_parsed'])) {
+			// Start grokking the parsed URL path	
+			$file = $docroot;
+							
+			// Try to get the filename and any extra path info
+			if (preg_match('|(.*?\.\w+)(/.*)|', $this->info['url_parsed']['path'], $matches)) {
+				$this->info['filename'] = $matches[1];
+				$this->info['path_info'] = $matches[2];
+			} else {
+				$this->info['filename'] = $this->info['url_parsed']['path'];
+			}
+			if ($this->debug) {cecho("Filename: {$this->info['filename']}\n");}
+			
+			// Build the real file path to search
+			$file .= str_replace('/', $DS, $this->info['filename']);
+			$file = str_replace($DS.$DS, $DS, $file);
+			
+			if (($rfile = realpath($file)) && is_file($rfile)) {
 				
-				$file = $docroot;
-								
-				// Try to get the filename and any extra path info
-				if (preg_match('|(.*?\.\w+)(/.*)|', $this->info['url_parsed']['path'], $matches)) {
-					$this->info['filename'] = $matches[1];
-					$this->info['path_info'] = $matches[2];
-				} else {
-					$this->info['filename'] = $this->info['url_parsed']['path'];
-				}
-				$file .= $this->info['filename'];
+				// The file exists, so store its details
+				if ($this->debug) {cecho("File found: $rfile\n");}
+				$this->filepath = $rfile;
+				$info = pathinfo($rfile);
 				
-				// So is the result an actual file?
-				if (($file = realpath($file)) && is_file($file)) {
-					$this->filepath = $file;
-					$info = pathinfo($file);
-				} else {
-					$info = $this->info['path_parsed'];
-				}
+			} else {
+				
+				// File not found, so use the URL values as fallback
+				$info = $this->info['path_parsed'];
 			}
 		}
-
-		if ($info) {
-			
-			// Get a normalized version of the info
-			$dir = $info['dirname'] == $DS ? '' : str_replace('/', $DS, $info['dirname']).$DS;
-			$dir = $dir != '' && $dir[0] == $DS ? substr($dir, 1) : $dir;
-			$base = $info['basename'];
-			$name = $info['filename'];
-			$ext = !empty($info['extension']) ? $info['extension'] : '';
-			return array($dir, $base, $name, $ext);
 		
-		} else {
-		
-			// Nothing else to do
-			return array('','','','');
-		}
+		// Store the values and return
+		$this->fileInfo = $info;
+		return $info;
 	}
 
+	/**
+	 * Helper method that refreshes the stored file info, is chainable.
+	 *
+	 * @return  MiniHTTPD_Request  this object
+	 */
+	public function refreshFileInfo()
+	{
+		$this->getFileInfo(null, true);
+		return $this;
+	}
+	
 	/**
 	 * Rewrites the path element of the request URL to allow transparent virtual 
 	 * to real path mapping.
@@ -209,6 +245,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 * parameter, the current request URL will be tested instead.
 	 *
 	 * @param   string  URL to be tested
+	 * @param   bool    use simple test? 
 	 * @return  bool	  true if trailing slash is needed
 	 */	
 	public function needsTrailingSlash($url=null)
@@ -223,7 +260,10 @@ class MiniHTTPD_Request extends MHTTPD_Message
 			$p = pathinfo($i['path']);
 			$d = pathinfo($p['dirname']);
 			
-			if (!isset($p['extension']) && !isset($d['extension'])) {
+			// Uncomment for debugging
+			// if ($this->debug) {cprint_r($i); cprint_r($p); cprint_r($d);}
+			
+			if (!isset($i['query']) && !isset($p['extension']) && !isset($d['extension'])) {
 				
 				// The URL is a directory, so we need a trailing slash
 				return true;
@@ -427,6 +467,50 @@ class MiniHTTPD_Request extends MHTTPD_Message
 		return $this->filepath;
 	}
 
+	/**
+	 * Sets the docroot path for the request.
+	 *
+	 * @param   string  absolute docroot path
+	 * @return  MiniHTTPD_Request  this instance
+	 */
+	public function setDocroot($docroot)
+	{
+		$this->docroot = $docroot;
+		return $this;
+	}
+
+	/**
+	 * Returns the docroot in which the request may search for files.
+	 *
+	 * @return  string  absolute docroot path
+	 */
+	public function getDocroot()
+	{
+		return $this->docroot;
+	}
+
+	/**
+	 * Sets the currently active request handler.
+	 *
+	 * @param   MiniHTTPD_Request_Handler  the request handler
+	 * @return  MiniHTTPD_Request  this instance
+	 */
+	public function setHandler(MiniHTTPD_Request_Handler $handler)
+	{
+		$this->handler = $handler;
+		return $this;
+	}
+
+	/**
+	 * Returns the currently active request handler.
+	 *
+	 * @return  MiniHTTPD_Request_Handler  the request handler
+	 */
+	public function getHandler()
+	{
+		return $this->handler;
+	}
+	
 	/**
 	 * Returns the calculated script name for the request.
 	 *
