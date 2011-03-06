@@ -163,7 +163,7 @@ class MiniHTTPD_Message
 	{
 		if ($this->debug) {$this->input .= $string;}
 		
-		// If headers have already been parsed, append $string to body
+		// If headers are done, append $string to body
 		if ($this->hasHeaderBlock) {
 			$this->body .= $string;
 			return true;
@@ -184,7 +184,7 @@ class MiniHTTPD_Message
 
 		while ($str !== false) {
 		
-			// The line is empty, so skip it
+			// Don't parse any empty lines
 			if ($h && trim($str) == '') {
 				$h = false;
 				continue;
@@ -207,7 +207,7 @@ class MiniHTTPD_Message
 						'request' => trim($str),
 						'method' => $info[0],
 						'url' => $info[1],
-						'url_parsed' => parse_url(str_replace('../', '', $info[1])),
+						'url_parsed' => parse_url(str_replace(array('../', '..\\'), '', $info[1])),
 						'protocol' => $info[2],
 					);
 					
@@ -315,6 +315,11 @@ class MiniHTTPD_Message
 		}
 	}
 
+	public function setBody($input)
+	{
+		$this->body = $input;
+	}
+	
 	/**
 	 * Returns the unparsed input.
 	 *

@@ -286,7 +286,7 @@ class MiniHTTPD_Server
 	{
 		return MHTTPD::$config['Paths']['logs'];
 	}	
-
+	
 	/**
 	 * Determines whether the Server Status page should be displayed or not.
 	 *

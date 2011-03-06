@@ -27,6 +27,8 @@
  * @license    BSD revised
  */
 
+//----------- MiniHTTPD classes -------------//
+
 require 'classes\server.php';
 class_alias('MiniHTTPD_Server', 'MHTTPD');
 
@@ -45,8 +47,10 @@ class_alias('MiniHTTPD_Response', 'MHTTPD_Response');
 require 'classes\logger.php';
 class_alias('MiniHTTPD_Logger', 'MHTTPD_Logger');
 
+//----------- MiniFCGI classes --------------//
+
 require 'classes\minifcgi\manager.php';
-class_alias('MiniFCGI_Manager',  'MFCGI');
+class_alias('MiniFCGI_Manager', 'MFCGI');
 
 require 'classes\minifcgi\client.php';
 class_alias('MiniFCGI_Client', 'MFCGI_Client');
