@@ -450,6 +450,21 @@ class MiniHTTPD_Server
 		}
 		return false;
 	}
+
+	/**
+	 * Returns raw info from the stored configuration file.
+	 *
+	 * @param   string  the config section name
+	 * @return  mixed   the config info, or false if empty
+	 */		
+	public static function getConfig($section)
+	{
+		if (!empty(MHTTPD::$config[$section])) {
+			return MHTTPD::$config[$section];
+		}
+		return false;
+	}
+	
 	
 	// ------ Protected/Private methods --------------------------------------------
 

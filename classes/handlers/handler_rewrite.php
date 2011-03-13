@@ -2,10 +2,13 @@
 /**
  * This handler rewrites request details based on regex matches of URL strings.
  *
- * To add rewrite rules: extend this class, define the rules in the $rules array,
- * and load the extended handler via the classes.php and .ini files. The 'default'
- * rule given as an example allows the use of pretty URLs as used by various web 
- * frameworks such as Kohana, CI, etc.
+ * To add rewrite rules: extend this class and define the rules in $rules, then
+ * load the extended handler via the classes.php and ini files. A simpler method
+ * is to define the rules in a custom file and load it via the main server ini 
+ * file (see the loadRules() method for more details).
+ * 
+ * The 'default' rule given as an example allows the use of pretty URLs as used by 
+ * various web frameworks such as Kohana, CI, etc.
  * 
  * @see MiniHTTPD_Request_Handler for full documentation.
  *
@@ -21,10 +24,11 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 {
 	protected $isFinal = false;
 	protected $useOnce = true;
-	protected $canSkip = true;
+	protected $canSkip = true;	
 	protected $matches;
+	protected $rules;
 	
-	protected $rules = array
+	protected $rules_default = array
 	(
 		'default' => array(
 			'match'    => '^(.*)$',					// matches every URL in whole
@@ -35,7 +39,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 			'redirect' => false,						// won't send any redirect info
 		),
 	);
-	
+		
 	public function matches() 
 	{
 		$url = $this->request->getUrl();
@@ -109,4 +113,36 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 		$this->matches = null;
 	}
 
+	public function __construct()
+	{
+		$this->loadRules();
+	}
+	
+	protected function loadRules()
+	{
+		if (!isset($this->rules)) {
+			
+			// Search for the configured rules file
+			if (($conf = MHTTPD::getConfig('Rewrite')) 
+				&& (
+					($file = realpath($conf['rules_file']))
+					||
+					($file = realpath(INIPATH.$conf['rules_file']))
+				)
+				&& is_file($file)
+				) {
+
+				// Fetch rules from the configured file
+				$this->rules = parse_ini_file($file, true);
+				if (MHTTPD::$debug) {cecho("Loaded rules from: $file\n");}	
+				
+			} else {
+				
+				// Use the default values
+				if (MHTTPD::$debug) {cecho("Rules file not found, using default rules\n");}	
+				$this->rules = $this->rules_default;
+			}
+		}
+	}
+	
 } // End MiniHTTPD_Handler_Rewrite
