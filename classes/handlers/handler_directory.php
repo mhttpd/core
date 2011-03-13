@@ -44,7 +44,7 @@ class MiniHTTPD_Handler_Directory extends MHTTPD_Handler
 			// Build the file path string
 			$file = $dir.$DS.$index;
 			
-			if (is_file($file)) {
+			if (($file = realpath($file)) && is_file($file)) {
 				
 				// The index file path is valid
 				if ($this->debug) {cecho("Client ({$this->client->getID()}) ... picking default index file ({$file})\n");}
