@@ -101,9 +101,7 @@ unset($DS, $docroot, $server_docroot, $temp, $logs, $paths, $path);
 require 'functions\common.php';
 
 // Load the required classes
-if (file_exists('lib\minihttpd\user_classes.php')) {
-	require 'user_classes.php';
-} else {
+if (!@include 'user_classes.php') {
 	require 'classes.php';
 }
 
