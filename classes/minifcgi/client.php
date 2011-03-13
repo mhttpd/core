@@ -87,15 +87,22 @@ class MiniFCGI_Client
 		list($host, $address, $port, $ssl) = MHTTPD::getServerInfo();
 		list($remoteAddress, $remotePort) = $request->getClientInfo();
 		list($pathInfo, $pathTranslated) = $request->getPathInfo();
+		list($rUrl, $rQuery, $rStatus) = $request->getRedirectInfo();
 		$headers = $request->getHeaders();
 		
 		// Build the parameters
-		$p = array();
 		$p['GATEWAY_INTERFACE'] = 'FastCGI/1.0';
 		if ($ssl) {$p['HTTPS'] = 'On';}
+		if ($rStatus) {
+			$p['REDIRECT_STATUS'] = $rStatus;
+		}
 		foreach ($headers as $header=>$value){
 			$header = str_replace('-', '_', strtoupper($header));
 			$p['HTTP_'.$header] = $value;
+		}
+		if ($rUrl) {
+			$p['REDIRECT_URL'] = $rUrl;
+			if ($rQuery) {$p['REDIRECT_QUERY_STRING'] = $rQuery;}			
 		}
 		$p['SERVER_SIGNATURE'] = MHTTPD::getSignature();
 		$p['SERVER_SOFTWARE'] = MHTTPD::getSoftwareInfo();
@@ -112,7 +119,7 @@ class MiniFCGI_Client
 		$p['REMOTE_HOST'] = gethostbyaddr($remoteAddress);
 		$p['REMOTE_ADDR'] = $remoteAddress;
 		$p['REMOTE_PORT'] = $remotePort;
-		$p['REQUEST_URI'] = $request->getUrl();
+		$p['REQUEST_URI'] = $request->getUrl(false);
 		if ($pathTranslated) {
 			$p['PATH_TRANSLATED'] = $pathTranslated;
 		}
@@ -142,9 +149,7 @@ class MiniFCGI_Client
 		);
 		
 		if ($this->debug) {
-			cecho('Added FCGI request: '.$request->getUrl().PHP_EOL.'--> '.$request->getFilepath().PHP_EOL);
-			#cprint_r($this->request);
-			#cprint_r($request->getFileInfo());
+			cecho('Added FCGI request: '.$request->getUrl(false).PHP_EOL.'--> '.$request->getFilepath().PHP_EOL);
 		}
 		
 		// Allow chaining
@@ -337,9 +342,9 @@ class MiniFCGI_Client
 	 * @param   MiniHTTPD_Response  the response object
 	 * @return  MiniFCGI_Client     this instance
 	 */
-	public function bindResponse(&$response)
+	public function bindResponse($response)
 	{
-		$this->response =& $response;
+		$this->response = $response;
 		return $this;
 	}
 	

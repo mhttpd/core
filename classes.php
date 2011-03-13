@@ -69,6 +69,7 @@ class_alias('MiniFCGI_Record', 'MFCGI_Record');
 require 'classes\handlers\handler_auth.php';
 require 'classes\handlers\handler_admin.php';
 require 'classes\handlers\handler_private.php';
+require 'classes\handlers\handler_rewrite.php';
 require 'classes\handlers\handler_dynamic.php';
 require 'classes\handlers\handler_static.php';
 require 'classes\handlers\handler_directory.php';

@@ -163,19 +163,24 @@ class MiniHTTPD_Request extends MHTTPD_Message
 
 			// Start grokking the parsed URL path	
 			$file = $docroot;
-							
+			
+			// Choose the original or rewritten URL info
+			$urlPath = !empty($this->info['rewritten']['url_parsed'])
+				? $this->info['rewritten']['url_parsed']['path']
+				: $this->info['url_parsed']['path']
+			;
+			
 			// Try to get the filename and any extra path info
-			if (preg_match('|(.*?\.\w+)(/.*)|', $this->info['url_parsed']['path'], $matches)) {
+			if (preg_match('|(.*?\.\w+)(/.*)|', $urlPath, $matches)) {
 				$this->info['filename'] = $matches[1];
 				$this->info['path_info'] = $matches[2];
 			} else {
-				$this->info['filename'] = $this->info['url_parsed']['path'];
+				$this->info['filename'] = $urlPath;
 			}
 			if ($this->debug) {cecho("Filename: {$this->info['filename']}\n");}
 			
 			// Build the real file path to search
-			$file .= str_replace('/', $DS, $this->info['filename']);
-			$file = str_replace($DS.$DS, $DS, $file);
+			$file .= str_replace('/', $DS, ltrim($this->info['filename'], '/'));
 			
 			if (($rfile = realpath($file)) && is_file($rfile)) {
 				
@@ -187,7 +192,10 @@ class MiniHTTPD_Request extends MHTTPD_Message
 			} else {
 				
 				// File not found, so use the URL values as fallback
-				$info = $this->info['path_parsed'];
+				$info = !empty($this->info['rewritten']['path_parsed']) 
+				 ? $this->info['rewritten']['path_parsed']
+				 : $this->info['path_parsed']
+				;
 			}
 		}
 		
@@ -245,6 +253,18 @@ class MiniHTTPD_Request extends MHTTPD_Message
 		return $this;
 	}
 
+	/**
+	 * Sets any new request info created by a rewrite action.
+	 *
+	 * @param   array  the rewritten info
+	 * @return  MiniHTTPD_Request  this object
+	 */
+	public function setRewriteInfo($info)
+	{
+		$this->info['rewritten'] = $info;
+		return $this;
+	}
+	
 	/**
 	 * Tests whether a request URL needs a trailing slash (mainly for redirecting
 	 * to a directory with '301 Moved Permanently'). If a URL is not passed as a 
@@ -388,7 +408,13 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 */
 	public function getQueryString()
 	{
-		return empty($this->info['url_parsed']['query']) ? '' : $this->info['url_parsed']['query'];
+		$query = '';
+		if (!empty($this->info['rewritten']['url_parsed']['query'])) {
+			$query = $this->info['rewritten']['url_parsed']['query'];
+		} elseif (!empty($this->info['url_parsed']['query'])) {
+			$query = $this->info['url_parsed']['query'];
+		}
+		return $query;
 	}
 
 	/**
@@ -398,7 +424,14 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 */
 	public function getUrlPath()
 	{
-		return $this->info['url_parsed']['path'];
+		if (isset($this->info['rewritten']['url_parsed'])) {
+			$path = $this->info['rewritten']['url_parsed']['path'];
+		} else {
+			$path = $this->info['url_parsed']['path'];
+		}
+		return $path;
+	}
+
 	/**
 	 * Returns a full file path string based on the parsed URL filename. Useful for
 	 * testing quickly whether the request is for a known file or directory.
@@ -416,13 +449,56 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	}
 	
 	/**
-	 * Returns the unparsed request URL.
+	 * Returns the unparsed request URL. By default any rewritten URL will be
+	 * returned, or the original request URL can be returned by setting the 
+	 * parameter to false.
 	 *
-	 * @return  string  the request URL
+	 * @param   bool    should the rewritten URL be returned?
+	 * @return  string  the current request URL
 	 */
-	public function getUrl()
+	public function getUrl($rewritten=true)
 	{
-		return $this->info['url'];
+		if ($rewritten && isset($this->info['rewritten']['url'])) {
+			$url = $this->info['rewritten']['url'];
+		} else {
+			$url = $this->info['url'];
+		}
+		return $url;
+	}
+	
+	/**
+	 * Returns the info for the redirected/rewritten request, mainly for use with
+	 * FastCGI requests.
+	 *
+	 * Note that if redirect_status is set to false in the info, no redirect values
+	 * will be passed to the FCGI process. This means the loss of variables such as 
+	 * REDIRECT_URL in scripts, but PATH_INFO and PHP_SELF work the same as in a
+	 * non-CGI mode. With the redirect info added, ORIG_PATH_INFO must be used in 
+	 * scripts instead, and PHP_SELF won't append any path info.
+	 *
+	 * @return  array  the redirected info
+	 */
+	public function getRedirectInfo()
+	{
+		$arr = array(false, false, false);
+		if (empty($this->info['rewritten']['redirect_status'])) {
+			return $arr;
+		}
+		if (isset($this->info['rewritten'])) {
+			
+			// Redirect URL
+			$arr[0] = $this->info['rewritten']['redirect_url'];
+			
+			// Redirect query
+			if	(isset($this->info['rewritten']['redirect_query'])) {
+				$arr[1] = $this->info['rewritten']['redirect_query'];
+			}
+			
+			// Redirect Status
+			$arr[2] = $this->info['rewritten']['redirect_status'];
+		}
+		
+		return $arr;
 	}
 	
 	/**
