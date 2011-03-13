@@ -12,6 +12,9 @@
     <hr>
     <h3>FCGI Scoreboard:</h3>
     <p>:fcgiscoreboard:</p>
+    <hr>
+    <h3>Request Handlers:</h3>
+    <pre>:requesthandlers:</pre>
 		<br /><hr>
     <address>:signature:</address>
 		<br /><br />

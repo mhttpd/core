@@ -41,6 +41,12 @@ class_alias('MiniHTTPD_Message', 'MHTTPD_Message');
 require 'classes\request.php';
 class_alias('MiniHTTPD_Request', 'MHTTPD_Request');
 
+require 'classes\handlers\handler.php';
+class_alias('MiniHTTPD_Request_Handler', 'MHTTPD_Handler');
+
+require 'classes\handlers\queue.php';
+class_alias('MiniHTTPD_Handlers_Queue', 'MHTTPD_Handlers_Queue');
+
 require 'classes\response.php';
 class_alias('MiniHTTPD_Response', 'MHTTPD_Response');
 
@@ -58,3 +64,11 @@ class_alias('MiniFCGI_Client', 'MFCGI_Client');
 require 'classes\minifcgi\record.php';
 class_alias('MiniFCGI_Record', 'MFCGI_Record');
 
+//-------- Request handler classes ---------//
+
+require 'classes\handlers\handler_auth.php';
+require 'classes\handlers\handler_admin.php';
+require 'classes\handlers\handler_private.php';
+require 'classes\handlers\handler_dynamic.php';
+require 'classes\handlers\handler_static.php';
+require 'classes\handlers\handler_directory.php';

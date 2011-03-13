@@ -20,7 +20,7 @@ class MiniHTTPD_Server
 	/**
 	 * Current software version.
 	 */
-	const VERSION = '0.3';
+	const VERSION = '0.4';
 	
 	/**
 	 * Supported HTTP protocol version.
@@ -71,6 +71,18 @@ class MiniHTTPD_Server
 	 * @var array
 	 */
 	protected static $clients = array();
+
+	/**
+	 * A list of the loaded request handlers.
+	 * @var array
+	 */
+	protected static $handlers = array();
+
+	/**
+	 * The request handler queue object
+	 * @var MiniHTTPD_Handlers_Queue
+	 */
+	protected static $handlersQueue;
 	
 	/**
 	 * A list of any aborted connections.
@@ -85,10 +97,13 @@ class MiniHTTPD_Server
 	 * Initializes the server with the given configuration.
 	 *
 	 * This method will also spawn any configured FastCGI processes required at
-	 * startup. Once initialized, it starts the main server loop.
+	 * startup, and load the configured request handlers. Once initialized, it 
+	 * starts the main server loop.
 	 *
 	 * @see  MiniHTTPD::main()
 	 * @uses MiniFCGI_Manager::spawn()
+	 * @uses MiniHTTPD_Request_Handler
+	 * @uses MiniHTTPD_Handlers_Queue
 	 *
 	 * @param   array  configuration settings
 	 * @return  void
@@ -110,7 +125,19 @@ class MiniHTTPD_Server
 		// Spawn any FCGI processes
 		MFCGI::$debug = MHTTPD::$debug;
 		MFCGI::spawn(null, MHTTPD::$config);
-					
+
+		// Load the configured request handlers
+		if (MHTTPD::$debug) {cecho("------------------------------------\n");}
+		foreach (MHTTPD::$config['Handlers'] as $type=>$handler) {
+			if (class_exists($handler)) {
+				if (MHTTPD::$debug) {cecho("Handler loaded ... $type\n");}
+				MHTTPD::$handlers[$type] = new $handler;
+			}
+		}
+		
+		// Create the queue object for the handlers
+		MHTTPD::$handlersQueue = new MHTTPD_Handlers_Queue(MHTTPD::$handlers);
+		
 		// Start running the main loop
 		MHTTPD::$running = true;
 		MHTTPD::main();
@@ -273,6 +300,7 @@ class MiniHTTPD_Server
 			MHTTPD::getSoftwareInfo(),
 			print_r(MHTTPD::$clients, true),
 			MFCGI::getScoreboard(true),
+			MHTTPD::getHandlers(true),
 			MHTTPD::getSignature(),
 		);
 	}
@@ -330,14 +358,18 @@ class MiniHTTPD_Server
 	/**
 	 * Returns the configured user information for the server administrator.
 	 *
-	 * @return  array|false  admin username & password, or error
+	 * @return  array|false  admin authorization info
 	 */		
-	public static function getAdminInfo()
+	public static function getAdminAuth()
 	{
 		if (empty(MHTTPD::$config['Admin']['admin_user'])) {
 			return false;
 		}
-		return array(MHTTPD::$config['Admin']['admin_user'] => MHTTPD::$config['Admin']['admin_pass']);
+		return array(
+			'realm' => 'server admin',
+			'user' => MHTTPD::$config['Admin']['admin_user'],
+			'pass' => MHTTPD::$config['Admin']['admin_pass'],
+		);
 	}
 
 	/**
@@ -351,6 +383,72 @@ class MiniHTTPD_Server
 		$url = $ssl ? 'https://' : 'http://';
 		$url .= $host.':'.$port;
 		return $url;
+	}
+
+	/**
+	 * Returns the list of loaded request handlers.
+	 *
+	 * @param   bool   return a string formatted list?
+	 * @return  array  list of loaded handlers
+	 */
+	public static function getHandlers($asString=false)
+	{
+		// Return the list of loaded objects
+		if (!$asString) {return MHTTPD::$handlers;}
+		
+		// Format the list as a string
+		$ret = '';
+		foreach (MHTTPD::$handlers as $type=>$handler) {
+			$ret .= str_pad(strtoupper($type), 15, '.')
+				.' I: '.$handler->getCount('init')
+				.' M: '.$handler->getCount('match')
+				.' S: '.$handler->getCount('success')
+				.' E: '.$handler->getCount('error')
+				.PHP_EOL;
+		}
+		
+		return $ret;
+	}
+
+	/**
+	 * Returns the currently loaded handlers queue.
+	 *
+	 * @param   bool  should the queue be initialized?
+	 * @return  MiniHTTPD_Handlers_Queue  the handlers queue object
+	 */
+	public static function getHandlersQueue($init=true)
+	{
+		if ($init) {MHTTPD::$handlersQueue->init();}
+		return MHTTPD::$handlersQueue;
+	}
+	
+	/**
+	 * Returns the list of configured access authentication details.
+	 *
+	 * @return  array|bool  access authorization list, or false if none exists
+	 */		
+	public function getAuthList()
+	{
+		return !empty(MHTTPD::$config['Auth']) ? MHTTPD::$config['Auth'] : false;
+	}
+	
+	/**
+	 * Returns any configured access authentication info for the given resource.
+	 *
+	 * @param   string      the requested URI
+	 * @return  array|bool  access authorization info, or false if none exists
+	 */	
+	public function getAuthInfo($uri)
+	{
+		if (isset(MHTTPD::$config['Auth'][$uri])) {
+			$arr = listToArray(MHTTPD::$config['Auth'][$uri]);
+			return array(
+				'realm' => $arr[0],
+				'user' => $arr[1],
+				'pass' => $arr[2],
+			);
+		}
+		return false;
 	}
 	
 	// ------ Protected/Private methods --------------------------------------------

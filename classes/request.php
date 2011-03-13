@@ -4,8 +4,8 @@
  * 
  * Apart from overloading any members in the base message class, the main
  * responsibility of this class is to provide the information needed by the
- * client to process the request and determine the relevant response. Much of
- * this class therefore consists of accessor or query methods.
+ * client and request handlers to process the request and determine the relevant
+ * response. Much of this class therefore consists of accessor or query methods.
  *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
@@ -120,6 +120,9 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	/**
 	 * Returns an array of information about the requested file.
 	 *
+	 * By default this method uses the result of the last call, so if the request
+	 * details are changed it should be re-called with $refresh set too true.
+	 *
 	 * @param   string  the docroot in which to search for the requested file
 	 * @param   bool    should the stored values be refreshed?
 	 * @return  array   the pathinfo() output of the requested file
@@ -222,18 +225,21 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	{
 		if ($this->debug) {cecho("Rewriting URL Path: ({$this->info['url_parsed']['path']} | {$search} -> {$replace} | ");} 
 
-		if (preg_match("|{$search}|", $this->info['url_parsed']['path'], $matches)) {
-			$url = preg_replace("|{$search}|", $replace, $this->info['url_parsed']['path']);
-			$this->info['path_parsed'] = pathinfo($url);
-			$this->info['url_parsed']['path'] = $url;
-			if ($this->debug) {cecho($url.')'.PHP_EOL);}
-			
-			if ($isBasePath) {
-				$this->info['url_parsed']['base_path'] = $matches[0];
-				if ($this->debug) {cecho(' ... added as base path ('.$matches[0].')'.PHP_EOL);}
-			}
-		} else {
+		if (!preg_match("|{$search}|", $this->info['url_parsed']['path'], $matches)) {
 			if ($this->debug) {cecho('nothing replaced)'.PHP_EOL);}
+			return $this;
+		}
+
+		// Rewrite the URL path
+		$url = preg_replace("|{$search}|", $replace, $this->info['url_parsed']['path']);
+		$this->info['path_parsed'] = pathinfo($url);
+		$this->info['url_parsed']['path'] = $url;
+		if ($this->debug) {cecho($url.')'.PHP_EOL);}
+		
+		// Add $search as base path?
+		if ($isBasePath) {
+			$this->info['url_parsed']['base_path'] = $matches[0];
+			if ($this->debug) {cecho(' ... added as base path ('.$matches[0].')'.PHP_EOL);}
 		}
 		
 		return $this;
@@ -393,6 +399,20 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	public function getUrlPath()
 	{
 		return $this->info['url_parsed']['path'];
+	/**
+	 * Returns a full file path string based on the parsed URL filename. Useful for
+	 * testing quickly whether the request is for a known file or directory.
+	 *
+	 * @return  string  the full file path
+	 */	
+	public function getUrlFilepath($full=true)
+	{
+		$DS = DIRECTORY_SEPARATOR;
+		$dir = str_replace('/', $DS, $this->getFilename());
+		if ($full) {
+			$dir = $this->getDocroot().ltrim($dir, $DS);
+		}
+		return $dir;
 	}
 	
 	/**
@@ -475,6 +495,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 */
 	public function setDocroot($docroot)
 	{
+		if (substr($docroot, -1) !== DIRECTORY_SEPARATOR) {$docroot .= DIRECTORY_SEPARATOR;}
 		$this->docroot = $docroot;
 		return $this;
 	}
@@ -487,28 +508,6 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	public function getDocroot()
 	{
 		return $this->docroot;
-	}
-
-	/**
-	 * Sets the currently active request handler.
-	 *
-	 * @param   MiniHTTPD_Request_Handler  the request handler
-	 * @return  MiniHTTPD_Request  this instance
-	 */
-	public function setHandler(MiniHTTPD_Request_Handler $handler)
-	{
-		$this->handler = $handler;
-		return $this;
-	}
-
-	/**
-	 * Returns the currently active request handler.
-	 *
-	 * @return  MiniHTTPD_Request_Handler  the request handler
-	 */
-	public function getHandler()
-	{
-		return $this->handler;
 	}
 	
 	/**
@@ -578,6 +577,18 @@ class MiniHTTPD_Request extends MHTTPD_Message
 		return array($pathInfo, $pathTranslated);
 	}
 
+	/**
+	 * Overrides the calculated path information for the request.
+	 *
+	 * @param   array  the new path info
+	 * @return  MiniHTTPD_Request  this instance
+	 */
+	public function setPathInfo($pathinfo)
+	{
+		$this->info['path_info'] = $pathinfo;
+		return $this;
+	}
+	
 	/**
 	 * Returns the request content type.
 	 *
