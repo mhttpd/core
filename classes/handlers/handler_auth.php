@@ -42,7 +42,7 @@ class MiniHTTPD_Handler_Auth extends MHTTPD_Handler
 		if (($authList = MHTTPD::getAuthList()) === false) {return false;}
 		$url = $this->request->getUrlPath();
 		foreach ($authList as $uri=>$info) {
-			if (strpos($url, $uri) === 0) {
+			if (stripos($url, $uri) === 0) {
 				if ($this->debug) {cecho("Client ({$this->client->getID()}) ... auth request ($uri)\n");}
 				$this->auth = MHTTPD::getAuthInfo($uri);
 				return true;
