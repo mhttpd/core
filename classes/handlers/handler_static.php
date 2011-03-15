@@ -16,7 +16,7 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 	protected $isFinal = true;
 	protected $info;
 	
-	public function matches() 
+	public function matches()
 	{
 		$info = $this->request->getFileInfo();
 		$ext = !empty($info['extension']) ? $info['extension'] : false;
@@ -58,13 +58,13 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 			if ($mtime == $ifmod) {
 
 				// Nothing new to send, so end here
-				$this->client->sendNotModified();
-				return true;
+				#$this->client->sendNotModified();
+				#return true;
 			}
 		}
 		
 		// Serve the static file
-		$this->client->startStatic($filepath, $this->info['extension']);
+		$this->startStatic($filepath, $this->info['extension']);
 		return true;
 	}
 
@@ -72,6 +72,44 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 	{
 		parent::reset();
 		$this->info = null;
+	}
+
+	/**
+	 * Initializes the response object for static requests.
+	 *
+	 * @param   string  path to the requested file
+	 * @param   string  extension of the requested file
+	 * @return  void
+	 */
+	public function startStatic($file, $ext, $new=true)
+	{
+		// Get the response object
+		if ($new) {$this->client->startResponse();}
+		$response = $this->client->getResponse();
+		
+		// Set the static headers
+		$response
+			->setHeader('Last-Modified', MHTTPD_Response::httpDate(filemtime($file)))
+			->setHeader('Content-Length', filesize($file))
+		;
+
+		// Get the mime type for the requested file
+		if ($new || !$response->hasHeader('Content-Type')) {
+			switch ($ext) {
+				case 'html':
+					$mime = 'text/html; charset=utf-8'; break;
+				case 'css':
+					$mime = 'text/css; charset=utf-8'; break;
+				default:
+					$finfo = new finfo(FILEINFO_MIME);
+					$mime = $finfo->file($file);
+					$mime = !empty($mime) ? $mime : 'application/octet-stream';
+			}
+			$response->setHeader('Content-Type', $mime);
+		}
+
+		// Open a file handle and attach it to the response
+		$response->setStream(fopen($file, 'rb'));
 	}
 	
 } // End MiniHTTPD_Handler_Static

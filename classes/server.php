@@ -386,17 +386,28 @@ class MiniHTTPD_Server
 	}
 
 	/**
-	 * Returns the list of loaded request handlers.
+	 * Returns a list of loaded request handlers as an array of objects or a
+	 * formatted string, or a single handler object by configured type.
 	 *
-	 * @param   bool   return a string formatted list?
-	 * @return  array  list of loaded handlers
+	 * @param   bool     return a string formatted list?
+	 * @param   string   the type of single handler requested
+	 * @return  mixed    false if single handler isn't found
 	 */
-	public static function getHandlers($asString=false)
+	public static function getHandlers($asString=false, $type=null)
 	{
-		// Return the list of loaded objects
-		if (!$asString) {return MHTTPD::$handlers;}
+		if (!$asString && !$type) {
+			
+			// Return the list of loaded objects
+			return MHTTPD::$handlers;
+
+		} elseif ($type && !$asString) {
+			
+			// Return a single loaded object
+			if (!isset(MHTTPD::$handlers[$type])) {return false;}
+			return MHTTPD::$handlers[$type];
+		}
 		
-		// Format the list as a string
+		// Or format the list as a string
 		$ret = '';
 		foreach (MHTTPD::$handlers as $type=>$handler) {
 			$ret .= str_pad(strtoupper($type), 15, '.')

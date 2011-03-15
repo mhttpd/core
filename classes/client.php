@@ -196,21 +196,16 @@ class MiniHTTPD_Client
 			$handler = $handlers->current();
 			$type = $handlers->key();
 			
-			if ($this->reprocessing && $handler->useOnce() && !$this->reauthorize) {
-				
-				// Skip handlers marked for single use
+			// Skip handlers marked for single use
+			if ($this->reprocessing && $handler->useOnce() && !$this->reauthorize) {				
 				$handlers->next();
 				continue;
-			
-			} elseif (!$this->reprocessing) {
-				
-				// Initialize the handler
-				$handler->init($this);
-				$handler->debug = $this->debug;
 			}
 			
-			// Add the current handler info to the client
+			// Initialize the handler
 			$this->handler = array('type' => $type);
+			$handler->init($this);
+			$handler->debug = $this->debug;
 			
 			// Set the persistence of the current request object
 			$this->persist = $handler->persist();
@@ -642,6 +637,16 @@ class MiniHTTPD_Client
 	}
 
 	/**
+	 * Returns the current response object.
+	 *
+	 * @return  MiniHTTPD_Response
+	 */
+	public function getResponse()
+	{
+		return $this->response;
+	}
+	
+	/**
 	 * Determines whether the client is currently reprocessing the request.
 	 *
 	 * @return  bool
@@ -693,40 +698,6 @@ class MiniHTTPD_Client
 		return $this->response;
 	}
 	
-	/**
-	 * Initializes the response object for static requests.
-	 *
-	 * @param   string  path to the requested file
-	 * @param   string  extension of the requested file
-	 * @return  void
-	 */
-	public function startStatic($file, $ext)
-	{
-		$this->startResponse();
-
-		// Set the static headers
-		$this->response
-			->setHeader('Last-Modified', MHTTPD_Response::httpDate(filemtime($file)))
-			->setHeader('Content-Length', filesize($file))
-		;
-
-		// Get the mime type for the requested file
-		switch ($ext) {
-			case 'html':
-				$mime = 'text/html; charset=utf-8'; break;
-			case 'css':
-				$mime = 'text/css; charset=utf-8'; break;
-			default:
-				$finfo = new finfo(FILEINFO_MIME);
-				$mime = $finfo->file($file);
-				$mime = !empty($mime) ? $mime : 'application/octet-stream';
-		}
-		$this->response->setHeader('Content-Type', $mime);
-
-		// Open a file handle and attach it to the response
-		$this->response->setStream(fopen($file, 'rb'));
-	}
-
 	/**
 	 * Sends a 304 Not Modified response to the client for caching purposes.
 	 *
