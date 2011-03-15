@@ -237,7 +237,7 @@ class MiniHTTPD_Client
 					if ($this->debug) {cecho("Client ({$this->ID}) ... handler finished, is final: $type\n");}
 					return $handler->getReturn();
 				}
-									
+
 			} elseif ($handler->skipped()) {
 			
 				// The handler has an error, but can be skipped
@@ -286,21 +286,26 @@ class MiniHTTPD_Client
 			if ($this->debug) {cprint_r($request);}
 			return false;
 		}
-
-		// Chunked encoding isn't yet supported
-		if ($request->isChunked()) {
-			$this->sendError(411, 'Chunked transfer-encoding is not supported in this version.');
-			return false;
-		}
-
 		// Set the extra request info
 		$request->setClientInfo($this->address, $this->port);
 		$request->setDocroot(MHTTPD::getDocroot());
 		$request->getFileInfo();
 		
 		// If this is a POST request, get the rest of the data
-		if ($request->isPost() && $clen = $request->getContentLength() && !$request->hasBody()) {
-			$request->setBody(@fread($this->socket, $clen));
+		if ($request->isPost() && !$request->hasBody()) {
+			
+			// With Content-Length set
+			if ($clen = $request->getContentLength()) {
+				$request->setBody(@fread($this->socket, $clen));
+			
+			// With Transfer-Encoding: chunked
+			} elseif ($request->isChunked()) {
+				$body = '';
+				while (!@feof($this->socket)) {
+					$body .= @fread($this->socket, 4096);
+				}
+				$request->setBody(MHTTPD_Request::unChunk($body));
+			}
 		}
 
 		// Attach the request to the client

@@ -44,6 +44,27 @@ class MiniHTTPD_Request extends MHTTPD_Message
 		return $needed_parts ? false : $data;
 	}
 
+	/**
+	 * Decodes strings sent via chunked transport-encoding.
+	 *
+	 * @param   string  the chunked string
+	 * @return  string  the decoded string
+	 */
+	public static function unChunk($chunked) {
+		$len = strlen($chunked);
+		$result = '';		
+		$pos = 0;
+		while ($pos < $len) {
+			$hex = substr($chunked, $pos, strpos(substr($chunked, $pos), "\r\n") + 2);
+			$size = hexdec(trim($hex));
+			$pos += strlen($hex);
+			$chunk = substr($chunked, $pos, $size);
+			$result .= $chunk;
+			$pos += strlen($chunk);
+		}
+		return $result;
+	}
+	
 	// ------ Instance variables and methods ---------------------------------------
 	
 	/**
@@ -110,7 +131,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 		}
 		
 		// Message body
-		if (!empty($this->body)) {
+		if ($this->body != '') {
 			$str .= "\r\n".$this->body;
 		}
 		
@@ -334,7 +355,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 */
 	public function isChunked()
 	{
-		return !empty($this->headers['transfer-encoding']) && $this->headers['transfer-encoding'] == 'chunked';
+		return isset($this->headers['transfer-encoding']) && $this->headers['transfer-encoding'] == 'chunked';
 	}
 	
 	/**
