@@ -58,8 +58,8 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 			if ($mtime == $ifmod) {
 
 				// Nothing new to send, so end here
-				#$this->client->sendNotModified();
-				#return true;
+				$this->client->sendNotModified();
+				return true;
 			}
 		}
 		
