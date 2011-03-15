@@ -1,6 +1,6 @@
 <?php
 /**
- * The MiniHTTPD request class.
+ * The MiniHTTPD response class.
  * 
  * Apart from overloading any members in the base message class, the main
  * responsibility of this class is to build the response for returning to the
@@ -133,6 +133,11 @@ class MiniHTTPD_Response extends MHTTPD_Message
 		return $this;
 	}
 
+	public function getStream()
+	{
+		return $this->stream;
+	}
+	
 	/**
 	 * Determines whether the message body is bound to a stream resource.
 	 *

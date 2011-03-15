@@ -576,10 +576,17 @@ class MiniHTTPD_Server
 	protected static function handleResponse(MiniHTTPD_Client $client)
 	{
 		if (!$client->isFinished()) {
-			if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... sending ");}
-			$client->sendResponse();
-			if (MHTTPD::$debug) {cecho("... done\n");}
-			$client->writeLog();
+			if ($client->isStreaming() && @feof($client->getStream())) {
+				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... stream ended ");}
+				$client->finish();
+			} else {
+				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... sending ");}
+				$client->sendResponse();
+			}
+			if (!$client->isStreaming()) {
+				if (MHTTPD::$debug) {cecho("... done\n");}
+				$client->writeLog();
+			}
 		}
 	}
 	
@@ -639,7 +646,7 @@ class MiniHTTPD_Server
 				
 		// Remove any active clients
 		foreach ($this->clients as $client) {
-			$this->removeClient($client);
+			MHTTPD::removeClient($client);
 		}
 		
 		// Flush any buffered logs
@@ -675,8 +682,9 @@ class MiniHTTPD_Server
 	 *
 	 * This is where the server does most if its work. Once the listening socket
 	 * is established, iterations of the the main loop are controlled entirely by
-	 * stream_select() for both client connections and FCGI requests. Each loop
-	 * should ideally finish as quickly as possible to enable best concurrency.
+	 * stream_select() for both client connections and FCGI requests as well as any
+	 * open file streams. Each loop should ideally finish as quickly as possible to
+	 * enable best concurrency.
 	 *
 	 * @todo Add a proper system for timing out idle/slow client connections.
 	 *
@@ -700,7 +708,7 @@ class MiniHTTPD_Server
 		// The main loop
 		while (MHTTPD::$running) 	{	
 		
-			// Build a list of active sockets to monitor
+			// Build a list of active streams to monitor
 			$read = array('listener' => MHTTPD::$listener);
 			foreach (MHTTPD::$clients as $i=>$client) {
 							
@@ -711,6 +719,11 @@ class MiniHTTPD_Server
 					// Add any client FCGI sockets
 					if ($cfsock = $client->getFCGISocket()) {
 						$read["clfcgi_$i"] = $cfsock;
+					}
+					
+					// Add any client file streams
+					if ($client->isStreaming()) {
+						$read["clstrm_$i"] = $client->getStream();
 					}
 				}
 			}
@@ -783,7 +796,7 @@ class MiniHTTPD_Server
 					$input = '';
 					
 					// Get the request header block only
-					while (	$buffer = @fread($csock, 1024)) {
+					while (	$buffer = @fgets($csock, 1024)) {
 						$input .= $buffer;
 						if ($buffer == '' || substr($input, -4) == "\r\n\r\n") {
 							break;

@@ -119,6 +119,18 @@ class MiniHTTPD_Client
 	 * @var bool
 	 */
 	protected $finished = false;
+
+	/**
+	 * Is the client currently streaming data?
+	 * @var bool
+	 */
+	protected $streaming = false;
+
+	/**
+	 * Has the client sent the header block?
+	 * @var bool
+	 */	
+	protected $sentHeaders = false;
 	
 	/**
 	 * A count of the client's completed requests.
@@ -347,6 +359,11 @@ class MiniHTTPD_Client
 		}
 	}
 
+	public function getStream()
+	{
+		return $this->response->getStream();
+	}
+	
 	/**
 	 * Sends the completed response to the client.
 	 *
@@ -364,39 +381,45 @@ class MiniHTTPD_Client
 	public function sendResponse($finish=true)
 	{
 		if (!$this->hasResponse()) {return false;}
+		if ($this->debug) {cecho(":\n\n");}
+		$sent = array();
+		
+		if (!$this->sentHeaders) {
 
-		// Get the response header block
-		$header = $this->response->getHeaderBlock();
-		if ($this->debug) {cecho(":\n\n$header");}
+			// Get the response header block
+			$header = $this->response->getHeaderBlock();
+			if ($this->debug) {cecho("$header");}
 
-		// Get the content body, if any
-		if ($this->request->isHead()) {
-			$body = false;
-		} else {
-			$body = $this->response->getBody();
+			// Write the response header to the socket
+			$bytes = @fwrite($this->socket, $header);
+			$this->response->addBytesSent($bytes);
+			$sent[] = $bytes;
+			$this->sentHeaders = true;	
 		}
+		
+		if (!$this->request->isHead()) {
 
-		// Write the response to the socket
-		$bytes = @fwrite($this->socket, $header);
-		$this->response->addBytesSent($bytes);
-		$sent[] = $bytes;
+			// Get the content body or stream
+			$body = $this->response->getBody();
 
-		if ($body) {
-
-			// Send streamed data in blocks of specified size
 			if ($this->response->hasStream()) {
+				
 				if ($this->debug) {cecho("Streaming response ... ");}
-				while (!feof($body)) {
-					if ($data = @fread($body, $this->blockSize)) {
-						$bytes = @fwrite($this->socket, $data);
-						$this->response->addBytesSent($bytes);
-						$sent[] = $bytes;
-					}
+				$this->streaming = true;
+				
+				if (!feof($body)) {
+					
+					// Send streamed data in blocks of specified size
+					$data = @fread($body, $this->blockSize);
+					$bytes = @fwrite($this->socket, $data);
+					$this->response->addBytesSent($bytes);
+					$sent[] = $bytes;
 				}
-				@fclose($body);
 
-			// Otherwise send the body string as one block
-			} else {
+			} elseif ($body != '') {
+				
+				// Otherwise send the body string as one block
+				echo "sending body ...";
 				$bytes = @fwrite($this->socket, $body);
 				$this->response->addBytesSent($bytes);
 				$sent[] = $bytes;
@@ -404,7 +427,7 @@ class MiniHTTPD_Client
 		}
 		if ($this->debug) {cecho('('.join(':', $sent).') ');}
 
-		if ($finish) {
+		if ($finish && !$this->streaming) {
 
 			// Finish the successful request/response
 			$this->finish();
@@ -436,8 +459,12 @@ class MiniHTTPD_Client
 
 		// Finalize & clean up
 		$this->finished = true;
-		$this->fcgi = null;
+		if ($this->streaming) {
+			$this->streaming = false;
+			@fclose($this->response->getStream());
+		}
 		$this->request = null;
+		$this->fcgi = null;
 		$this->response = null;
 	}
 
@@ -656,6 +683,11 @@ class MiniHTTPD_Client
 		return $this->reprocessing;
 	}
 
+	public function isStreaming()
+	{
+		return $this->streaming;
+	}
+	
 	/**
 	 * Common initalization step for all response objects.
 	 *
@@ -691,9 +723,10 @@ class MiniHTTPD_Client
 			$this->numRequests++;
 		}
 
-		// Needed for open connections waiting for FCGI
+		// Set client to start state
 		$this->finished = false;
-
+		$this->sentHeaders = false;
+		
 		// Allow chaining
 		return $this->response;
 	}
