@@ -300,26 +300,6 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	}
 	
 	/**
-	 * Returns the list of stored headers as a single block.
-	 *
-	 * @return  string  the header block
-	 */
-	public function getHeaderBlock()
-	{
-		$headers = $this->status."\r\n";
-		foreach ($this->headers as $header=>$value) {
-			if (is_array($value)) foreach ($value as $val) {
-				if ($val != '') {$headers .= "{$header}: {$val}\r\n";}
-			} elseif ($value != '') {
-				$headers .= "{$header}: {$value}\r\n";
-			}
-		}
-		$headers .= "\r\n";
-		
-		return $headers;
-	}
-
-	/**
 	 * Returns the response content length.
 	 *
 	 * @return  integer  length in bytes of the response body

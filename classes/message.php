@@ -231,9 +231,11 @@ class MiniHTTPD_Message
 				} else {
 				
 					// Add or append new header values
-					if (!empty($this->headers[$headername]) && is_array($this->headers[$headername])) {
+					if (isset($this->headers[$headername]) && $this->headers[$headername] != '' 
+						&& is_array($this->headers[$headername])
+						) {
 						$this->headers[$headername][] = $headervalue;
-					} elseif (!empty($this->headers[$headername])) {
+					} elseif (isset($this->headers[$headername]) && $this->headers[$headername] != '') {
 						$this->headers[$headername] .= ','.$headervalue;
 					} else {
 						$this->headers[$headername] = $headervalue;
@@ -252,24 +254,88 @@ class MiniHTTPD_Message
 	 * Determines whether a header by the given name exists.
 	 *
 	 * @param   string  the header name
-	 * @return  bool
+	 * @param   bool    is the search case-insensitive
+	 * @return  bool    true if header found
 	 */
-	public function hasHeader($name)
+	public function hasHeader($name, $nocase=false)
 	{
-		return !empty($this->headers[$name]);
+		if (!$nocase) {
+			return isset($this->headers[$name]) && $this->headers[$name] != '';
+		}
+
+		// Case-insensitive search
+		return ($this->getHeader($name, true) !== '');
 	}
 
 	/**
 	 * Returns the stored header value for the given header name.
 	 *
 	 * @param   string  the header name
+	 * @param   string  should the search be case-insensitive?
 	 * @return  string  the header value, or blank if none exists
 	 */
-	public function getHeader($name)
+	public function getHeader($name, $nocase=false)
 	{
-		return empty($this->headers[$name]) ? '' : $this->headers[$name];
+		if (!$nocase) {
+			return isset($this->headers[$name]) && $this->headers[$name] != '' ? $this->headers[$name] : '';
+		}
+		
+		// Case-insensitive search
+		$search = array_combine(array_map('strtolower',array_keys($this->headers)), array_keys($this->headers));
+		$name = strtolower($name);
+		return isset($search[$name]) ? $this->headers[$search[$name]] : '';
 	}
 
+	/**
+	 * Returns the list of stored headers as a single block.
+	 *
+	 * @return  string  the header block
+	 */
+	public function getHeaderBlock()
+	{
+		$headers = $this->status."\r\n";
+		foreach ($this->headers as $header=>$value) {
+			if (is_array($value)) foreach ($value as $val) {
+				if ($val != '') {$headers .= "{$header}: {$val}\r\n";}
+			} elseif ($value != '') {
+				$headers .= "{$header}: {$value}\r\n";
+			}
+		}
+		$headers .= "\r\n";
+		
+		return $headers;
+	}
+	
+	/**
+	 * Searches for a string in the header block, can be more accurate than
+	 * hasHeader() if the string case isn't known.
+	 *
+	 * @param   string  the search string
+	 * @param   bool    case-insensitive search?
+	 * @return  bool    true if matched
+	 */
+	public function inHeaders($search, $nocase=true)
+	{
+		$headers = $this->getHeaderBlock();
+		if ($nocase) {
+			return (stripos($headers, $search) !== false);
+		}
+		return (strpos($headers, $search) !== false);
+	}
+	
+	/**
+	 * Removes a header from the current message.
+	 *
+	 * @param   string  the header name
+	 * @void
+	 */
+	public function removeHeader($name)
+	{
+		if (isset($this->headers[$name])) {
+			unset($this->headers[$name]);
+		}
+	}
+	
 	/**
 	 * Returns the list of stored headers.
 	 *
@@ -287,7 +353,7 @@ class MiniHTTPD_Message
 	 */
 	public function hasBody()
 	{
-		return !empty($this->body);
+		return $this->body != '';
 	}
 
 	/**
