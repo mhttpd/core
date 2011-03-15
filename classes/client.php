@@ -333,22 +333,25 @@ class MiniHTTPD_Client
 		// Bind the FCGI and client responses
 		$this->fcgi->bindResponse($this->response);
 
-		// Get the response and calculate its content length
+		// Get the response and process it
 		if ($this->fcgi->readResponse()) {
 
+			// Divert any error messages
 			if ($this->response->hasErrorCode()) {
-
-				// Divert any error messages
 				$this->sendError($this->response->getStatusCode(), '(FastCGI) '.$this->response->getBody());
 				return false;
-
-			} else {
-
-				// Otherwise continue processing
-				if ($this->response->hasBody()) {
-					$this->response->setHeader('Content-Length', $this->response->getContentLength());
-				}
+				
+			// Check for any X-SendFile request
+			} elseif ($this->response->hasHeader('X-SendFile')) {
+				return $this->sendFileX(str_replace('"', '', $this->response->getHeader('X-SendFile')));
+			
+			// Otherwise calculate the content length
+			} elseif ($this->response->hasBody() 
+				&& !($this->response->getHeader('Transfer-Encoding', true) == 'chunked')
+				) {
+				$this->response->setHeader('Content-Length', $this->response->getContentLength());
 			}
+			
 			return true;
 
 		// Abort client response if unsuccessful
@@ -806,4 +809,56 @@ class MiniHTTPD_Client
 		$this->sendResponse(false);
 	}
 	
+	/**
+	 * Implements X-SendFile requests from FCGI processes.
+	 *
+	 * If the FCGI returns an X-SendFile header containing a valid filename within
+	 * the configured docroot, the server will send the static file directly. This 
+	 * is especially useful for large file transfers. The FCGI script should also 
+	 * usually set the Content-Disposition and Content-Type headers for sending files
+	 * as attachments, otherwise the file contents will be displayed in the browser.
+	 *
+	 * @param   string  full path of the filename to send
+	 * @return  bool    true if the file was sent successfully
+	 */
+	protected function sendFileX($file)
+	{
+		if ($this->debug) {cecho("Client ({$this->ID}) ... X-SendFile: $file\n");}
+
+		// Remove unneeded headers from the FCGI response
+		$this->response->removeHeader('X-SendFile');
+		$this->response->removeHeader('Content-type');
+
+		// Is the requested file a valid one?
+		if ( !($file = realpath($file))
+			|| !stripos($file, $this->request->getDocroot())
+			|| !is_file($file)
+			) {
+			$this->sendError(404, 'The requested file was not found on this server.');
+			return false;		
+		}
+		
+		// Get the configured static request handler
+		if(!($handler = MHTTPD::getHandlers(false, 'static'))) {
+			$this->sendError(500, 'No static handler was available to complete this request.');
+			return false;
+		}
+		$handler->init($this);
+
+		// Send the file now as an attachment?
+		if ($this->response->hasHeader('Content-Disposition')) {
+			$ext = pathinfo($file, PATHINFO_EXTENSION);
+			$handler->startStatic($file, $ext, false);
+			return true;
+		}
+			
+		// Send as an ordinary static file for browser display
+		$this->request->setFilepath($file)->refreshFileInfo();
+		if ($handler->matches() && $handler->execute()) {
+			return $handler->getReturn();
+		}
+		
+		return false;
+	}
+
 } // End MiniHTTPD_Client
