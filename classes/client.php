@@ -118,7 +118,7 @@ class MiniHTTPD_Client
 	 * Has the current client request been finished?
 	 * @var bool
 	 */
-	protected $finished = false;
+	protected $finished = true;
 
 	/**
 	 * Is the client currently streaming data?
@@ -171,7 +171,7 @@ class MiniHTTPD_Client
 	 * @param   bool  true if this is a new request
 	 * @return  bool  true if the request has been successfully processed
 	 */
-	public function processRequest($new=true)
+	public function processRequest()
 	{
 		if (empty($this->input)) {
 			trigger_error("No request input to process", E_USER_NOTICE);
@@ -179,7 +179,7 @@ class MiniHTTPD_Client
 		}
 
 		// Create a new request object if needed or forced
-		if ($new || empty($this->request) || $this->persist === false) {
+		if (empty($this->request) || $this->persist === false) {
 		
 			if ($this->debug) {
 				cecho("Client ({$this->ID}) ... processing request\n");
@@ -545,6 +545,16 @@ class MiniHTTPD_Client
 		return $this->finished;
 	}
 
+	/**
+	 * Determines whether the client is ready to receive a new request.
+	 *
+	 * @return  bool
+	 */
+	public function isReady()
+	{
+		return ($this->finished || $this->needsAuthorization());
+	}
+	
 	/**
 	 * Determines whether the client has an active request.
 	 *

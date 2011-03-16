@@ -60,7 +60,7 @@ class MiniHTTPD_Handler_Directory extends MHTTPD_Handler
 				$this->request->setFilename(rtrim($this->request->getUrlPath(), '/').'/'.$index)
 					->setFilepath($file)
 					->refreshFileInfo();
-				$this->returnValue = $this->client->processRequest(false);
+				$this->returnValue = $this->client->processRequest();
 				return true;
 			}
 		}

@@ -802,7 +802,7 @@ class MiniHTTPD_Server
 				$csock = $client->getSocket();
 				
 				// Handle any queued client requests
-				if ($csock && in_array($csock, $read)) {
+				if ($client->isReady() && $csock && in_array($csock, $read)) {
 				
 					// Start reading the request
 					if (MHTTPD::$debug) {cecho("reading ... ");}
