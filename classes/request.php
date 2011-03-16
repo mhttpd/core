@@ -732,6 +732,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 				$A1 = md5($data['username'].':'.$realm.':'.$users[$data['username']]);
 				$A2 = md5($this->getMethod().':'.$data['uri']);
 				$valid = md5($A1.':'.$data['nonce'].':'.$data['nc'].':'.$data['cnonce'].':'.$data['qop'].':'.$A2);
+				$this->info['username'] = $data['username'];
 				if ($data['response'] == $valid) {
 					return true;
 				}

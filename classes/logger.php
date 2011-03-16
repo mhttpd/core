@@ -140,8 +140,6 @@ class MiniHTTPD_Logger
 	 * Parses a request object to build the initial log info, or adds the request
 	 * info directly.
 	 *
-	 * @todo Add access authorization info.
-	 *
 	 * @param   MiniHTTPD_Request|array  the request object or the request info
 	 * @return  MiniHTTPD_Logger   this instance
 	 */
@@ -177,6 +175,9 @@ class MiniHTTPD_Logger
 			if ($response instanceof MHTTPD_Response) {
 				$this->entry['code'] = $response->getStatusCode();
 				$this->entry['bytes'] = $response->getBytesSent();
+				if ($user = $response->getUsername()) {
+					$this->entry['user'] = $user;
+				}
 			}
 		}
 		

@@ -396,4 +396,14 @@ class MiniHTTPD_Message
 		return $this->input;
 	}
 	
+	/**
+	 * Returns any username used for access authorization.
+	 *
+	 * @return  string  the username
+	 */
+	public function getUsername()
+	{
+		return isset($this->info['username']) ? $this->info['username'] : false;
+	}	
+
 } // End MiniHTTPD_Message

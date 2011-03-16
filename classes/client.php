@@ -794,6 +794,7 @@ class MiniHTTPD_Client
 		$this->response = MHTTPD::factory('response')
 			->setHeader('Server', MHTTPD::getSoftwareInfo())
 			->setHeader('Date', MHTTPD_Response::httpDate(time()))
+			->setUsername($this->request->getUsername())
 			->setStatusCode($code)
 		;
 

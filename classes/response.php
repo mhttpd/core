@@ -339,5 +339,17 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	{
 		return $this->getHeader('Transfer-Encoding', true) == 'chunked';
 	}
+
+	/**
+	 * Sets the username used for access authorization.
+	 *
+	 * @param   string  the username
+	 * @return  MiniHTTPD_Request  this instance
+	 */	
+	public function setUsername($user)
+	{
+		$this->info['username'] = $user;
+		return $this;
+	}	
 	
 } // End MiniHTTPD_Response
