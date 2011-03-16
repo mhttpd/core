@@ -43,6 +43,8 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 	public function matches() 
 	{
 		$url = $this->request->getUrl();
+		$info = $this->request->getFileInfo();
+		$ext = isset($info['extension']) ? true : false;
 		
 		// Process each defined rule
 		foreach ($this->rules as $name=>$rule) {
@@ -51,7 +53,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 			$matched = false;
 			
 			// Test rules that shouldn't match files or directories
-			if ((!$rule['isFile'] && !$rule['isDir']) 
+			if ((!$ext && !$rule['isFile'] && !$rule['isDir']) 
 				&& !file_exists($this->request->getUrlFilepath())
 				) {
 				$matched = true;
