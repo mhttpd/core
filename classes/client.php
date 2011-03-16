@@ -162,9 +162,10 @@ class MiniHTTPD_Client
 	 * @uses MiniHTTPD_Request_Handler
 	 * @uses MiniHTTPD_Handlers_Queue
 	 *
+	 * @param   bool  true if this is a new request
 	 * @return  bool  true if the request has been successfully processed
 	 */
-	public function processRequest()
+	public function processRequest($new=true)
 	{
 		if (empty($this->input)) {
 			trigger_error("No request input to process", E_USER_NOTICE);
@@ -172,7 +173,7 @@ class MiniHTTPD_Client
 		}
 
 		// Create a new request object if needed or forced
-		if (empty($this->request) || $this->persist === false) {
+		if ($new || empty($this->request) || $this->persist === false) {
 		
 			if ($this->debug) {
 				cecho("Client ({$this->ID}) ... processing request\n");
