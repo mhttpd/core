@@ -576,14 +576,28 @@ class MiniHTTPD_Server
 	protected static function handleResponse(MiniHTTPD_Client $client)
 	{
 		if (!$client->isFinished()) {
-			if ($client->isStreaming() && @feof($client->getStream())) {
+			
+			if ($client->isStreaming() && !$client->hasOpenStream()) {
+				
+				// The client has finished streaming a static file
 				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... stream ended ");}
 				$client->finish();
+			
+			} elseif ($client->isChunking() && !$client->hasOpenFCGI()) {
+				
+				// The client has finished sending chunked output from an FCGI response
+				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... chunking ended ");}
+				$client->finish();
+			
 			} else {
+			
+				// The client is sending the response
 				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... sending ");}
 				$client->sendResponse();
 			}
-			if (!$client->isStreaming()) {
+			
+			// complete logging
+			if (!$client->isStreaming() && !$client->isChunking()) {
 				if (MHTTPD::$debug) {cecho("... done\n");}
 				$client->writeLog();
 			}

@@ -127,6 +127,12 @@ class MiniHTTPD_Client
 	protected $streaming = false;
 
 	/**
+	 * Is the client currently in chunking mode?
+	 * @var bool
+	 */
+	protected $chunking = false;
+	
+	/**
 	 * Has the client sent the header block?
 	 * @var bool
 	 */	
@@ -323,25 +329,30 @@ class MiniHTTPD_Client
 	 * headers, calculating the content length, etc. It's more efficient in this
 	 * case to use a single response object bound to both the server client and
 	 * the FCGI client objects. Currently the whole of the  response body needs to
-	 * be buffered to get its content length, which is not ideal.
+	 * be buffered to get its content length, so chunked transport-encoding will be
+	 * automatically applied if the body exceeds the FCGI buffer size.
 	 *
 	 * @uses MiniFCGI_Client::readResponse()
-	 *
-	 * @todo Add support for chunked encoding as per HTTP/1.1.
 	 *
 	 * @return  bool  false if the client response needs to be aborted
 	 */
 	public function readFCGIResponse()
 	{
-		// Create the client response
-		$this->startResponse();
+		if ($this->response == null) {
 
-		// Bind the FCGI and client responses
-		$this->fcgi->bindResponse($this->response);
+			// Create the client response
+			$this->startResponse();
+
+			// Bind the FCGI and client responses
+			$this->fcgi->bindResponse($this->response);
+		}
 
 		// Get the response and process it
 		if ($this->fcgi->readResponse()) {
 
+			// Continue if already chunking
+			if ($this->chunking) {return true;}
+			
 			// Divert any error messages
 			if ($this->response->hasErrorCode()) {
 				$this->sendError($this->response->getStatusCode(), '(FastCGI) '.$this->response->getBody());
@@ -351,10 +362,13 @@ class MiniHTTPD_Client
 			} elseif ($this->response->hasHeader('X-SendFile')) {
 				return $this->sendFileX(str_replace('"', '', $this->response->getHeader('X-SendFile')));
 			
+			// Check chunked transfer-encoding
+			} elseif ($this->fcgi->isChunking()) {
+				$this->response->setHeader('Transfer-Encoding', 'chunked');
+				$this->chunking = true;
+			
 			// Otherwise calculate the content length
-			} elseif ($this->response->hasBody() 
-				&& !($this->response->getHeader('Transfer-Encoding', true) == 'chunked')
-				) {
+			} elseif ($this->response->hasBody() && !$this->response->isChunked()) {
 				$this->response->setHeader('Content-Length', $this->response->getContentLength());
 			}
 			
@@ -368,9 +382,25 @@ class MiniHTTPD_Client
 		}
 	}
 
+	/**
+	 * Returns any file stream attached to the response.
+	 *
+	 * @return  resource  the file stream
+	 */	
 	public function getStream()
 	{
 		return $this->response->getStream();
+	}
+
+	/**
+	 * Determines whether any attached response file stream is available and open
+	 * for reading.
+	 *
+	 * @return  bool  true if the stream is open
+	 */	
+	public function hasOpenStream()
+	{
+		return $this->response->hasStream() && !@feof($this->response->getStream());
 	}
 	
 	/**
@@ -381,8 +411,6 @@ class MiniHTTPD_Client
 	 * body either buffered in whole or waiting to be streamed to the client. This
 	 * method will usually be called from the main server loop, except in the case 
 	 * of error messages that need to be sent immediately.
-	 *
-	 * @todo Support chunked encoding output as per HTTP/1.1
 	 *
 	 * @param   bool  should the response be finished here?
 	 * @return  bool  true if response is sent successfully
@@ -416,7 +444,7 @@ class MiniHTTPD_Client
 				if ($this->debug) {cecho("Streaming response ... ");}
 				$this->streaming = true;
 				
-				if (!feof($body)) {
+				if (!@feof($body)) {
 					
 					// Send streamed data in blocks of specified size
 					$data = @fread($body, $this->blockSize);
@@ -425,10 +453,22 @@ class MiniHTTPD_Client
 					$sent[] = $bytes;
 				}
 
+			} elseif ($this->chunking) {
+
+				// Send the current body as a new chunk
+				if ($this->debug) {cecho('Sending chunked ... ');}
+				$chunk = dechex(strlen($body))."\r\n".$body."\r\n";
+				$bytes = @fwrite($this->socket, $chunk);
+				$this->response->addBytesSent($bytes);
+				$sent[] = $bytes;
+				
+				// Flush the current body
+				$this->response->setBody('');
+
 			} elseif ($body != '') {
 				
-				// Otherwise send the body string as one block
-				echo "sending body ...";
+				// Otherwise send the whole body
+				if ($this->debug) {cecho('Sending body ... ');}
 				$bytes = @fwrite($this->socket, $body);
 				$this->response->addBytesSent($bytes);
 				$sent[] = $bytes;
@@ -436,14 +476,14 @@ class MiniHTTPD_Client
 		}
 		if ($this->debug) {cecho('('.join(':', $sent).') ');}
 
-		if ($finish && !$this->streaming) {
+		if ($finish && !$this->streaming && !$this->chunking) {
 
-			// Finish the successful request/response
+			// Finish the successful response now
 			$this->finish();
 
 		} else {
 
-			// Errors will be finished in the main loop
+			// Finish in the main loop
 			if ($this->debug) {cecho("... returning to main loop\n");}
 		}
 
@@ -468,9 +508,17 @@ class MiniHTTPD_Client
 
 		// Finalize & clean up
 		$this->finished = true;
-		if ($this->streaming) {
-			$this->streaming = false;
+		if ($this->streaming) {			
+			
+			// Close open stream
 			@fclose($this->response->getStream());
+			$this->streaming = false;
+		
+		} elseif ($this->chunking) {
+			
+			// Add chunked encoding terminator
+			@fwrite($this->socket, "0\r\n\r\n");
+			$this->chunking = false;
 		}
 		$this->request = null;
 		$this->fcgi = null;
@@ -615,6 +663,16 @@ class MiniHTTPD_Client
 	}
 
 	/**
+	 * Determines whether any attached FCGI process is open for reading.
+	 *
+	 * @return  bool  true if the FCGI socket is open
+	 */		
+	public function hasOpenFCGI()
+	{
+		return $this->fcgi->hasOpenSocket();
+	}
+	
+	/**
 	 * Returns the ID of the FCGI process with which the client is communicating.
 	 *
 	 * @return  integer|bool  false if no FCGI process is attached
@@ -692,9 +750,25 @@ class MiniHTTPD_Client
 		return $this->reprocessing;
 	}
 
+	/**
+	 * Determines whether the client is currently streaming the static file
+	 * response.
+	 *
+	 * @return  bool  true if streaming
+	 */	
 	public function isStreaming()
 	{
 		return $this->streaming;
+	}
+
+	/**
+	 * Determines whether the client is currently in chunking mode.
+	 
+	 * @return  bool  true if chunking
+	 */
+	public function isChunking()
+	{
+		return $this->chunking;
 	}
 	
 	/**

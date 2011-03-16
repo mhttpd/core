@@ -8,8 +8,6 @@
  * FCGI client response. The response body may be buffered locally or handled 
  * as a stream resource. Most of the methods here are also chainable.
  *
- * @todo Add support for chunked encoding as per HTTP/1.1.
- *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
  * @copyright  (c) 2010 MiniHTTPD Team
@@ -81,6 +79,7 @@ class MiniHTTPD_Response extends MHTTPD_Message
 		'Pragma'=> '',
 		'Location' => '',
 		'Content-Encoding' => '',
+		'Transfer-Encoding' => '',
 		'Vary' => '',
 		'WWW-Authenticate' => '',
 		'Content-Length'=> '',
@@ -223,7 +222,7 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	}
 
 	/**
-	 * Overrides a parsed header value, or add a new one.
+	 * Overrides a parsed header value, or adds a new one.
 	 *
 	 * @param   string  header name
 	 * @param   string  header value
@@ -329,6 +328,16 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	public function getBytesSent()
 	{
 		return empty($this->bytes) ? 0 : $this->bytes;
+	}
+
+	/**
+	 * Determines whether chunked transfer-encoding has been used by the response.
+	 *
+	 * @return  bool
+	 */
+	public function isChunked()
+	{
+		return $this->getHeader('Transfer-Encoding', true) == 'chunked';
 	}
 	
 } // End MiniHTTPD_Response

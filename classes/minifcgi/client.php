@@ -50,6 +50,12 @@ class MiniFCGI_Client
 	 * @var resource
 	 */
 	protected $socket;
+
+	/**
+	 * Is the client currently in chunking mode?
+	 * @var bool
+	 */
+	protected $chunking = false;
 	
 	/**
 	 * Creates a new FCGI client, by default bound to a server client.
@@ -224,6 +230,11 @@ class MiniFCGI_Client
 		return true;
 	}
 	
+	public function hasOpenSocket()
+	{
+		return is_resource($this->socket) && !@feof($this->socket);
+	}
+	
 	/**
 	 * Parses the received FCGI response records and builds the response object.
 	 *
@@ -266,41 +277,63 @@ class MiniFCGI_Client
 			// Get the current record
 			if (!$record->read()) {
 				trigger_error("Cannot read FCGI response ({$request['ID']}) (".(--$tries).' tries left)', E_USER_NOTICE);
-				usleep(500); 
+				usleep(500);
 				continue;
 			}
 						
 			// Handle the content
 			if ($record->isType(MFCGI::STDOUT) || $record->isType(MFCGI::STDERR)) {
 				if (!$response->hasAllHeaders()) {
-					$response->parse($record->getContent(), false);
+					$response->parse($record->getContent(), false);					
 				} else {
 					$response->append($record->getContent());
 				}
 			}
-			
+		
 			// Any errors to log?
 			if ($record->isType(MFCGI::STDERR)) {
 				trigger_error('FCGI server returned error', E_USER_WARNING);
 			}
+			
+			// Check chunked transfer-encoding
+			if ($this->chunking) {break;}
+			if ($response->hasAllHeaders()) {
+				
+				// Skip if response is already chunked or is an error message
+				if ($response->isChunked() || $response->hasErrorCode()) {
+					continue;
+				
+				// Go into chunking mode if response exceeds buffer
+				} elseif (strlen($response->getBody()) > MFCGI::MAX_LENGTH) {
+					$this->chunking = true;
+					break;
+				}
+			}
 		}
 		
-		// Close the socket gracefully
-		if ($this->debug) {
-			$sname = stream_socket_get_name($socket, false);
-			$sname = stream_socket_get_name($this->socket, false);
-			$pinfo = $this->ID == 0 ? $this->process : $this->process.','.MFCGI::getPID($this->process);
-			cecho("Closing FCGI connection (c:{$this->ID}, p:{$pinfo}) ({$sname})\n");
+		if ($this->debug && $this->chunking) {cecho("--> Using chunked encoding ({$request['ID']})\n");}
+		
+		if (@feof($socket)) {
+		
+			// Close the socket gracefully
+			if ($this->debug) {
+				$sname = stream_socket_get_name($socket, false);
+				$sname = stream_socket_get_name($this->socket, false);
+				$pinfo = $this->ID == 0 ? $this->process : $this->process.','.MFCGI::getPID($this->process);
+				cecho("Closing FCGI connection (c:{$this->ID}, p:{$pinfo}) ({$sname})\n");
+			}
+			
+			// Update the FCGI process info
+			MFCGI::removeClient($this->process);
+			
+			// Close the connection
+			MHTTPD::closeSocket($socket);
 		}
-		
-		// Update the FCGI process info
-		MFCGI::removeClient($this->process);
-		
-		// Close the connection
-		MHTTPD::closeSocket($socket);
 		
 		// Any problems? Check the End Request codes
-		if ($request['ID'] != 0 && !$response->hasBody() && $record->isType(MFCGI::END_REQUEST)) {
+		if (!$this->chunking && $request['ID'] != 0 && !$response->hasBody() 
+			&& $record->isType(MFCGI::END_REQUEST)
+			) {
 			trigger_error('FCGI returned no content, request is ended (codes: '.$record->getEndCodes().')', E_USER_NOTICE);
 			if ($response->hasErrorCode()) {
 				$response->append(print_r($response, true));
@@ -386,6 +419,16 @@ class MiniFCGI_Client
 	public function getSocket()
 	{
 		return is_resource($this->socket) ? $this->socket : false;
+	}
+
+	/**
+	 * Determines whether the client is currently in chunking mode.
+	 
+	 * @return  bool  true if chunking
+	 */
+	public function isChunking()
+	{
+		return $this->chunking;
 	}
 	
 	/**
