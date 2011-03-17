@@ -19,7 +19,7 @@ class MiniHTTPD_Handler_Admin extends MHTTPD_Handler
 	
 	public function matches() 
 	{
-		// Match special URL pattern
+		// Match server admin page requests only
 		if (!preg_match('@^/server-(status|info)$@', $this->request->getUrl(), $matches)) {
 			return false;
 		}

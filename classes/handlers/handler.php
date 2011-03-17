@@ -14,11 +14,11 @@
  * may also be re-called on the fly via the methods of the handler queue object
  * used by the client.
  *
- * @see MiniHTTPD_Handlers_Queue
- *
  * To add a new handler, first extend this class and implement its abstract methods.
  * Then load the extended handler via the classes.php and default.ini files (or the 
  * user versions, see the notes in each).
+ *
+ * @see MiniHTTPD_Handlers_Queue
  *
  * @package    MiniHTTPD
  * @subpackage Handlers

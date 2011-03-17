@@ -18,12 +18,11 @@ class MiniHTTPD_Handler_Private extends MHTTPD_Handler
 	public function matches()
 	{
 		// Match private directory URLs only
-		$url = $this->request->getUrl();
-		if (!preg_match('@^/(api-docs|extras)/?@', $url, $matches)) {
+		if (!preg_match('@^/(api-docs|extras)/?@', $this->request->getUrl(), $matches)) {
 			return false;
 		}
+		if ($this->debug) {cecho("Client ({$this->client->getID()}) ... private request ({$matches[1]})\n");}
 		$this->dir = $matches[1];
-		if ($this->debug) {cecho("Client ({$this->client->getID()}) ... private request ({$this->dir})\n");}
 		return true;
 	}
 	
