@@ -736,10 +736,7 @@ class MiniHTTPD_Client
 	 */
 	public function getFCGISocket()
 	{
-		if ($this->fcgi) {
-			return $this->fcgi->getSocket();
-		}
-		return false;
+		return $this->hasOpenFCGI() ? $this->fcgi->getSocket() : false;
 	}
 
 	/**
@@ -749,7 +746,7 @@ class MiniHTTPD_Client
 	 */		
 	public function hasOpenFCGI()
 	{
-		return $this->fcgi->hasOpenSocket();
+		return ($this->fcgi && $this->fcgi->hasOpenSocket());
 	}
 	
 	/**
