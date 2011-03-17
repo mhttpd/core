@@ -4,10 +4,8 @@
  * 
  * This static class is responsible for managing the FastCGI process pool. It 
  * connects clients to available processes, spawns new ones if needed, monitors 
- * activity on each of the processes and maintains a scoreboard for the pool.
- *
- * @todo Add better dynamic management of the process pool, particularly for
- * culling idle or zombie processes.
+ * activity on each of the processes, culls any idle processes after a given time
+ * and maintains a scoreboard for the pool.
  *
  * @package    MiniHTTPD
  * @subpackage MiniFCGI
@@ -101,8 +99,6 @@ class MiniFCGI_Manager
 	 *
 	 * @uses createProcess()
 	 *
-	 * @todo Add a proper system for killing idle processes dynamically.	 
-	 *
 	 * @param   integer  a stored process ID number
 	 * @param   array    the configuration settings
 	 * @return  bool     true if a new process was spawned  
@@ -161,6 +157,9 @@ class MiniFCGI_Manager
 	 */
 	public static function connect($clientID, $processID=null)
 	{		
+		// Cull any idle processes
+		MFCGI::cullProcesses();
+
 		if (MFCGI::$debug) {cecho("Connecting FCGI ... ");}
 		
 		// Keep count of connection attempts
@@ -183,7 +182,7 @@ class MiniFCGI_Manager
 			}
 		}
 		
-		// Cull any non-running processes
+		// Verify any non-running processes
 		MFCGI::verifyProcesses();
 		
 		if (empty($ID)) {
@@ -290,12 +289,13 @@ class MiniFCGI_Manager
 	 * @param   bool  return scoreboard as a string?
 	 * @return  array|string  the scorebord for the process pool
 	 */
-	public static function getScoreboard($asString=false) {
+	public static function getScoreboard($asString=false) 
+	{
 		if ($asString) {
 			$ret = '';
 			foreach (MFCGI::$pool as $ID=>$info) {
-				$ret .= "P: {$ID} ({$info['pid']}), C: {$info['clients']}, R: {$info['requests']}\n";
-			}
+				$ret .= "P: {$ID} ({$info['pid']}), C: {$info['clients']}, R: {$info['requests']}, T: {$info['time']}\n";
+			}		
 		} else {
 			$ret = array();
 			foreach (MFCGI::$pool as $ID=>$info) {
@@ -303,6 +303,7 @@ class MiniFCGI_Manager
 					'pid' => $info['pid'],
 					'clients' => $info['clients'],
 					'requests' => $info['requests'],
+					'time' => $info['time'],
 				);
 			}
 		}
@@ -406,6 +407,7 @@ class MiniFCGI_Manager
 			MFCGI::$pool[$ID]['address'] = $address;
 			MFCGI::$pool[$ID]['port'] = $port;
 			MFCGI::$pool[$ID]['cwd'] = $cwd;
+			MFCGI::$pool[$ID]['time'] = time();
 			MFCGI::$pool[$ID]['pid'] = null;
 			MFCGI::$pool[$ID]['clients'] = 0;
 			MFCGI::$pool[$ID]['requests'] = 0;
@@ -466,8 +468,8 @@ class MiniFCGI_Manager
 	}
 	
 	/**
-	 * Checks all of the processes in the pool and culls any that that seem to have 
-	 * died or are not responding as expected.
+	 * Checks all of the processes in the pool and removes any that that seem to 
+	 * have died or are not responding as expected.
 	 *
 	 * @todo This needs a much more robust approach.
 	 * @see processExists()
@@ -481,6 +483,48 @@ class MiniFCGI_Manager
 				if (MFCGI::$debug) {cecho("Process {$ID} ({$info['pid']}) no longer exists\n");}
 				unset(MFCGI::$pool[$ID]);
 			}
+		}
+	}
+
+	/**
+	 * Kills any idle processes and removes them from the pool.
+	 *
+	 * This method checks the age of each process in the pool (in reverse order)
+	 * and kills any idle ones that are older than the configured cull_time_limit 
+	 * if there are more in the pool than the configured min_processes number.
+	 *
+	 * @return  void
+	 */	
+	protected static function cullProcesses()
+	{
+		// Only cull if allowed and if idle processes exist
+		$maxCulls = count(MFCGI::$pool) - MFCGI::$config['min_processes'];
+		if ($maxCulls == 0 || MFCGI::$config['cull_time_limit'] == 0) {
+			return;
+		}
+		
+		// Start culling processes
+		$pids = array(); $now = time(); $c = 0;
+		$cullSecs =  MFCGI::$config['cull_time_limit'] * 60;
+		$processes = MFCGI::$pool;
+		krsort($processes);
+		
+		// Get the PIDs of idle processes
+		foreach ($processes as $ID=>$info) {
+			if ($info['clients'] == 0 && ($info['time'] + $cullSecs) < $now) {
+				if (++$c > $maxCulls) {break;}
+				$pids[] = $info['pid'];
+				unset(MFCGI::$pool[$ID]);
+			}
+		}	
+
+		// Kill the processes as a batch
+		if (count($pids) > 0) {
+			$pidList = '/PID '.join(' /PID ', $pids);
+			if (MFCGI::$debug) {
+				cecho("Culling FCGI processes ... $pidList\n");
+			}
+			$kill = shell_exec('taskkill /F /T '.$pidList.' 2>&1');
 		}
 	}
 	
