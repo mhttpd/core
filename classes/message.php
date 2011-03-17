@@ -281,8 +281,9 @@ class MiniHTTPD_Message
 		}
 		
 		// Case-insensitive search
+		$name = strtolower($name);
 		foreach ($this->headers as $hname=>$value) {
-			if (strtolower($hname) == strtolower($name)) {
+			if (strtolower($hname) == $name) {
 				return $this->headers[$hname];
 			}
 		}
@@ -341,9 +342,10 @@ class MiniHTTPD_Message
 		}
 		
 		// Case-insensitive search
+		$name = strtolower($name);
 		foreach ($this->headers as $hname=>$value) {
-			if (strtolower($hname) == strtolower($name)) {
-				unset($this->headers[$name]);
+			if (strtolower($hname) == $name) {
+				unset($this->headers[$hname]);
 			}
 		}
 		return $this;
