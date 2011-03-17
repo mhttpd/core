@@ -1,7 +1,7 @@
 <?php
 /**
- * This class handles the access authorization for the requested resource.
- * URIs, usernames and passwords should be set in the server .ini file.
+ * This class handles the access authorization for the requested resource. URIs, 
+ * usernames and passwords should be set in the server .ini file.
  * 
  * @see MiniHTTPD_Request_Handler for full documentation.
  *

@@ -154,7 +154,6 @@ abstract class MiniHTTPD_Request_Handler
 	 * @param   bool  whether errors can be skipped
 	 * @return  bool  true if errors can be skipped
 	 */
-
 	public function canSkip($skip=null)
 	{
 		if ($skip != null) {

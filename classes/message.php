@@ -345,16 +345,6 @@ class MiniHTTPD_Message
 	{
 		return $this->headers;
 	}
-	
-	/**
-	 * Determines whether the current object includes a message body.
-	 *
-	 * @return  bool
-	 */
-	public function hasBody()
-	{
-		return $this->body != '';
-	}
 
 	/**
 	 * Determines whether the current object has finished parsing headers.
@@ -364,6 +354,16 @@ class MiniHTTPD_Message
 	public function hasAllHeaders()
 	{
 		return $this->hasHeaderBlock;
+	}
+	
+	/**
+	 * Determines whether the current object includes a message body.
+	 *
+	 * @return  bool
+	 */
+	public function hasBody()
+	{
+		return $this->body != '';
 	}
 	
 	/**

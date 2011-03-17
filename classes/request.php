@@ -15,6 +15,28 @@
 class MiniHTTPD_Request extends MHTTPD_Message
 {
 	// ------ Class variables and methods ------------------------------------------
+
+	/**
+	 * Decodes strings sent via chunked transport-encoding.
+	 *
+	 * @param   string  the chunked string
+	 * @return  string  the decoded string
+	 */
+	public static function unChunk($chunked) 
+	{
+		$len = strlen($chunked);
+		$result = '';		
+		$pos = 0;
+		while ($pos < $len) {
+			$hex = substr($chunked, $pos, strpos(substr($chunked, $pos), "\r\n") + 2);
+			$size = hexdec(trim($hex));
+			$pos += strlen($hex);
+			$chunk = substr($chunked, $pos, $size);
+			$result .= $chunk;
+			$pos += strlen($chunk);
+		}
+		return $result;
+	}
 	
 	/**
 	 * Parses a HTTP digest authentication string.
@@ -42,27 +64,6 @@ class MiniHTTPD_Request extends MHTTPD_Message
 		}
 
 		return $needed_parts ? false : $data;
-	}
-
-	/**
-	 * Decodes strings sent via chunked transport-encoding.
-	 *
-	 * @param   string  the chunked string
-	 * @return  string  the decoded string
-	 */
-	public static function unChunk($chunked) {
-		$len = strlen($chunked);
-		$result = '';		
-		$pos = 0;
-		while ($pos < $len) {
-			$hex = substr($chunked, $pos, strpos(substr($chunked, $pos), "\r\n") + 2);
-			$size = hexdec(trim($hex));
-			$pos += strlen($hex);
-			$chunk = substr($chunked, $pos, $size);
-			$result .= $chunk;
-			$pos += strlen($chunk);
-		}
-		return $result;
 	}
 	
 	// ------ Instance variables and methods ---------------------------------------

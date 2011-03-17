@@ -42,7 +42,7 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 			$this->error = "File not found ({$filename})";
 			$this->returnValue = false;
 			
-			// Send error response now
+			// Send the error response now
 			$this->client->sendError(404, 'The requested URL '.$this->request->getUrlPath().' was not found on this server.');
 			return false;
 		}

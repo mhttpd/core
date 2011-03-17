@@ -596,7 +596,7 @@ class MiniHTTPD_Server
 				$client->sendResponse();
 			}
 			
-			// complete logging
+			// Complete logging
 			if (!$client->isStreaming() && !$client->isChunking()) {
 				if (MHTTPD::$debug) {cecho("... done\n");}
 				$client->writeLog();

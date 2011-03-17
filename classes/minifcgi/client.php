@@ -296,8 +296,10 @@ class MiniFCGI_Client
 			}
 			
 			// Check chunked transfer-encoding
-			if ($this->chunking) {break;}
-			if ($response->hasAllHeaders()) {
+			if ($this->chunking) {
+				break;
+				
+			} elseif ($response->hasAllHeaders()) {
 				
 				// Skip if response is already chunked or is an error message
 				if ($response->isChunked() || $response->hasErrorCode()) {

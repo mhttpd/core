@@ -119,7 +119,15 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 	{
 		$this->loadRules();
 	}
-	
+
+	/**
+	 * Loads the rewrite rules from an external file if $rules is not already set.
+	 *
+	 * The path to the rules file should be set in the server ini file. If it can't
+	 * be found, the $rules_default array will be used instead.
+	 *
+	 * @return  void
+	 */	
 	protected function loadRules()
 	{
 		if (!isset($this->rules)) {

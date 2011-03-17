@@ -168,7 +168,6 @@ class MiniHTTPD_Client
 	 * @uses MiniHTTPD_Request_Handler
 	 * @uses MiniHTTPD_Handlers_Queue
 	 *
-	 * @param   bool  true if this is a new request
 	 * @return  bool  true if the request has been successfully processed
 	 */
 	public function processRequest()
@@ -293,6 +292,7 @@ class MiniHTTPD_Client
 			if ($this->debug) {cprint_r($request);}
 			return false;
 		}
+		
 		// Set the extra request info
 		$request->setClientInfo($this->address, $this->port);
 		$request->setDocroot(MHTTPD::getDocroot());
@@ -321,86 +321,47 @@ class MiniHTTPD_Client
 	}
 	
 	/**
-	 * Receives the FCGI response and processes it for returning to the client.
+	 * Common initalization step for all response objects.
 	 *
-	 * The main task here is to handle the raw response returned from the FastCGI
-	 * process and create a response object for communicating the result to the
-	 * client. This involves merging any received headers with the server's default
-	 * headers, calculating the content length, etc. It's more efficient in this
-	 * case to use a single response object bound to both the server client and
-	 * the FCGI client objects. Currently the whole of the  response body needs to
-	 * be buffered to get its content length, so chunked transport-encoding will be
-	 * automatically applied if the body exceeds the FCGI buffer size.
-	 *
-	 * @uses MiniFCGI_Client::readResponse()
-	 *
-	 * @return  bool  false if the client response needs to be aborted
+	 * @param   integer  response code
+	 * @param   bool     should the connection be closed after the response is sent?
+	 * @return  MiniHTTPD_Client  this instance
 	 */
-	public function readFCGIResponse()
+	public function startResponse($code=200, $close=false)
 	{
-		if ($this->response == null) {
+		// Create the initial client response object
+		$this->response = MHTTPD::factory('response')
+			->setHeader('Server', MHTTPD::getSoftwareInfo())
+			->setHeader('Date', MHTTPD_Response::httpDate(time()))
+			->setUsername($this->request->getUsername())
+			->setStatusCode($code)
+		;
 
-			// Create the client response
-			$this->startResponse();
+		// Process the connection status
+		$maxRequests = MHTTPD::getMaxRequests();
+		if ($close || $this->numRequests == $maxRequests) {
 
-			// Bind the FCGI and client responses
-			$this->fcgi->bindResponse($this->response);
-		}
+			// Close the connection now
+			$this->response->setHeader('Connection', 'Close');
 
-		// Get the response and process it
-		if ($this->fcgi->readResponse()) {
-
-			// Continue if already chunking
-			if ($this->chunking) {return true;}
-			
-			// Divert any error messages
-			if ($this->response->hasErrorCode()) {
-				$this->sendError($this->response->getStatusCode(), '(FastCGI) '.$this->response->getBody());
-				return false;
-				
-			// Check for any X-SendFile request
-			} elseif ($this->response->hasHeader('X-SendFile')) {
-				return $this->sendFileX(str_replace('"', '', $this->response->getHeader('X-SendFile')));
-			
-			// Check chunked transfer-encoding
-			} elseif ($this->fcgi->isChunking()) {
-				$this->response->setHeader('Transfer-Encoding', 'chunked');
-				$this->chunking = true;
-			
-			// Otherwise calculate the content length
-			} elseif ($this->response->hasBody() && !$this->response->isChunked()) {
-				$this->response->setHeader('Content-Length', $this->response->getContentLength());
-			}
-			
-			return true;
-
-		// Abort client response if unsuccessful
 		} else {
-			$this->response = null;
-			$this->sendError(502, 'The FCGI process did not respond correctly.');
-			return false;
+
+			// Keep the connection alive
+			$timeout = 'timeout='.MHTTPD::getAliveTimeout();
+			$max = 'max='.($maxRequests - $this->numRequests);
+			$this->response
+				->setHeader('Connection', 'Keep-Alive, '.$this->ID)
+				->setHeader('Keep-Alive', "{$timeout}, {$max}")
+			;
+			$this->numRequests++;
 		}
-	}
 
-	/**
-	 * Returns any file stream attached to the response.
-	 *
-	 * @return  resource  the file stream
-	 */	
-	public function getStream()
-	{
-		return $this->response->getStream();
-	}
-
-	/**
-	 * Determines whether any attached response file stream is available and open
-	 * for reading.
-	 *
-	 * @return  bool  true if the stream is open
-	 */	
-	public function hasOpenStream()
-	{
-		return $this->response->hasStream() && !@feof($this->response->getStream());
+		// Set client to start state
+		$this->finished = false;
+		$this->sentHeaders = false;
+		
+		// Allow chaining
+		return $this->response;
 	}
 	
 	/**
@@ -526,6 +487,20 @@ class MiniHTTPD_Client
 	}
 
 	/**
+	 * Writes the current log line to the attached log.
+	 *
+	 * @return  MiniHTTPD_Client  this instance
+	 */
+	public function writeLog()
+	{
+		if ($this->logger) {
+			$this->logger->write();
+			$this->logger = null;
+		}
+		return $this;
+	}
+	
+	/**
 	 * Returns the client ID number.
 	 *
 	 * @return  integer
@@ -625,88 +600,24 @@ class MiniHTTPD_Client
 	}
 
 	/**
-	 * Adds a MiniFCGI client object to this client.
+	 * Returns any file stream attached to the response.
 	 *
-	 * @param   MiniFCGI_Client   the FCGI client
-	 * @return  MiniHTTPD_Client  this instance
-	 */
-	public function addFCGIClient(MiniFCGI_Client $fcgi)
+	 * @return  resource  the file stream
+	 */	
+	public function getStream()
 	{
-		$this->fcgi = $fcgi;
-		return $this;
-	}
-	
-	/**
-	 * Determines if the client has an active FCGI request.
-	 *
-	 * @return  bool
-	 */
-	public function hasFCGI()
-	{
-		return !empty($this->fcgi);
+		return $this->response->getStream();
 	}
 
 	/**
-	 * Returns the FCGI client ID number.
+	 * Determines whether any attached response file stream is available and open
+	 * for reading.
 	 *
-	 * @return  integer|bool  ID number or false if no FCGI client is attached
-	 */
-	public function getFCGIClientID()
+	 * @return  bool  true if the stream is open
+	 */	
+	public function hasOpenStream()
 	{
-		if ($this->fcgi) {
-			return $this->fcgi->getID();
-		}
-		return false;
-	}
-
-	/**
-	 * Returns the attached FCGI client stream socket.
-	 *
-	 * @return  resource|bool  false if no client is attached
-	 */
-	public function getFCGISocket()
-	{
-		if ($this->fcgi) {
-			return $this->fcgi->getSocket();
-		}
-		return false;
-	}
-
-	/**
-	 * Determines whether any attached FCGI process is open for reading.
-	 *
-	 * @return  bool  true if the FCGI socket is open
-	 */		
-	public function hasOpenFCGI()
-	{
-		return $this->fcgi->hasOpenSocket();
-	}
-	
-	/**
-	 * Returns the ID of the FCGI process with which the client is communicating.
-	 *
-	 * @return  integer|bool  false if no FCGI process is attached
-	 */
-	public function getFCGIProcess()
-	{
-		if ($this->fcgi) {
-			return $this->fcgi->getProcess();
-		}
-		return false;
-	}
-
-	/**
-	 * Writes the current log line to the attached log.
-	 *
-	 * @return  MiniHTTPD_Client  this instance
-	 */
-	public function writeLog()
-	{
-		if ($this->logger) {
-			$this->logger->write();
-			$this->logger = null;
-		}
-		return $this;
+		return $this->response->hasStream() && !@feof($this->response->getStream());
 	}
 
 	/**
@@ -781,86 +692,142 @@ class MiniHTTPD_Client
 		return $this->chunking;
 	}
 	
+	//------------- FastCGI METHODS ------------------------------------------------
+	
 	/**
-	 * Common initalization step for all response objects.
+	 * Adds a MiniFCGI client object to this client.
 	 *
-	 * @param   integer  response code
-	 * @param   bool     should the connection be closed after the response is sent?
+	 * @param   MiniFCGI_Client   the FCGI client
 	 * @return  MiniHTTPD_Client  this instance
 	 */
-	public function startResponse($code=200, $close=false)
+	public function addFCGIClient(MiniFCGI_Client $fcgi)
 	{
-		// Create the initial client response object
-		$this->response = MHTTPD::factory('response')
-			->setHeader('Server', MHTTPD::getSoftwareInfo())
-			->setHeader('Date', MHTTPD_Response::httpDate(time()))
-			->setUsername($this->request->getUsername())
-			->setStatusCode($code)
-		;
-
-		// Process the connection status
-		$maxRequests = MHTTPD::getMaxRequests();
-		if ($close || $this->numRequests == $maxRequests) {
-
-			// Close the connection now
-			$this->response->setHeader('Connection', 'Close');
-
-		} else {
-
-			// Keep the connection alive
-			$timeout = 'timeout='.MHTTPD::getAliveTimeout();
-			$max = 'max='.($maxRequests - $this->numRequests);
-			$this->response
-				->setHeader('Connection', 'Keep-Alive, '.$this->ID)
-				->setHeader('Keep-Alive', "{$timeout}, {$max}")
-			;
-			$this->numRequests++;
-		}
-
-		// Set client to start state
-		$this->finished = false;
-		$this->sentHeaders = false;
-		
-		// Allow chaining
-		return $this->response;
+		$this->fcgi = $fcgi;
+		return $this;
 	}
 	
 	/**
-	 * Sends a 304 Not Modified response to the client for caching purposes.
+	 * Determines if the client has an active FCGI request.
 	 *
 	 * @return  bool
 	 */
-	public function sendNotModified()
+	public function hasFCGI()
 	{
-		// Only the header will be sent
-		if ($this->debug) {cecho("Client ({$this->ID}) ... responding with 304 Not Modified\n");}
-		$this->startResponse(304);
-		return true;
+		return !empty($this->fcgi);
 	}
 
 	/**
-	 * Sends a redirect response to the client.
+	 * Returns the FCGI client ID number.
 	 *
-	 * @param   string   redirected url
-	 * @param   integer  redirection response code
-	 * @return  bool
+	 * @return  integer|bool  ID number or false if no FCGI client is attached
 	 */
-	public function sendRedirect($url, $code=302)
+	public function getFCGIClientID()
 	{
-		if ($this->debug) {cecho("Client ({$this->ID}) ... redirecting to: {$url}\n");}
-
-		// Build the redirect response
-		$message = 'Redirecting to <a href="'.$url.'">here</a>';
-		$this->startResponse($code)
-			->setHeader('Location', $url)
-			->setHeader('Content-Type', 'text/html')
-			->setHeader('Content-Length', strlen($message))
-			->append($message)
-		;
-
-		// Return to the main loop
-		return true;
+		if ($this->fcgi) {
+			return $this->fcgi->getID();
+		}
+		return false;
 	}
+
+	/**
+	 * Returns the attached FCGI client stream socket.
+	 *
+	 * @return  resource|bool  false if no client is attached
+	 */
+	public function getFCGISocket()
+	{
+		if ($this->fcgi) {
+			return $this->fcgi->getSocket();
+		}
+		return false;
+	}
+
+	/**
+	 * Determines whether any attached FCGI process is open for reading.
+	 *
+	 * @return  bool  true if the FCGI socket is open
+	 */		
+	public function hasOpenFCGI()
+	{
+		return $this->fcgi->hasOpenSocket();
+	}
+	
+	/**
+	 * Returns the ID of the FCGI process with which the client is communicating.
+	 *
+	 * @return  integer|bool  false if no FCGI process is attached
+	 */
+	public function getFCGIProcess()
+	{
+		if ($this->fcgi) {
+			return $this->fcgi->getProcess();
+		}
+		return false;
+	}
+
+	/**
+	 * Receives the FCGI response and processes it for returning to the client.
+	 *
+	 * The main task here is to handle the raw response returned from the FastCGI
+	 * process and create a response object for communicating the result to the
+	 * client. This involves merging any received headers with the server's default
+	 * headers, calculating the content length, etc. It's more efficient in this
+	 * case to use a single response object bound to both the server client and
+	 * the FCGI client objects. Currently the whole of the  response body needs to
+	 * be buffered to get its content length, so chunked transport-encoding will be
+	 * automatically applied if the body exceeds the FCGI buffer size.
+	 *
+	 * @uses MiniFCGI_Client::readResponse()
+	 *
+	 * @return  bool  false if the client response needs to be aborted
+	 */
+	public function readFCGIResponse()
+	{
+		if ($this->response == null) {
+
+			// Create the client response
+			$this->startResponse();
+
+			// Bind the FCGI and client responses
+			$this->fcgi->bindResponse($this->response);
+		}
+
+		// Get the response and process it
+		if ($this->fcgi->readResponse()) {
+
+			// Continue if already chunking
+			if ($this->chunking) {return true;}
+			
+			// Divert any error messages
+			if ($this->response->hasErrorCode()) {
+				$this->sendError($this->response->getStatusCode(), '(FastCGI) '.$this->response->getBody());
+				return false;
+				
+			// Check for any X-SendFile request
+			} elseif ($this->response->hasHeader('X-SendFile')) {
+				return $this->sendFileX(str_replace('"', '', $this->response->getHeader('X-SendFile')));
+			
+			// Check chunked transfer-encoding
+			} elseif ($this->fcgi->isChunking()) {
+				$this->response->setHeader('Transfer-Encoding', 'chunked');
+				$this->chunking = true;
+			
+			// Otherwise calculate the content length
+			} elseif ($this->response->hasBody() && !$this->response->isChunked()) {
+				$this->response->setHeader('Content-Length', $this->response->getContentLength());
+			}
+			
+			return true;
+
+		// Abort client response if unsuccessful
+		} else {
+			$this->response = null;
+			$this->sendError(502, 'The FCGI process did not respond correctly.');
+			return false;
+		}
+	}
+		
+	//-------------	CLIENT RESPONSES ----------------------------------------------
 
 	/**
 	 * Sends an error response to the client.
@@ -898,6 +865,43 @@ class MiniHTTPD_Client
 
 		// Send the response now, then finish in the main loop
 		$this->sendResponse(false);
+	}
+	
+	/**
+	 * Sends a 304 Not Modified response to the client for caching purposes.
+	 *
+	 * @return  bool
+	 */
+	public function sendNotModified()
+	{
+		// Only the header will be sent
+		if ($this->debug) {cecho("Client ({$this->ID}) ... responding with 304 Not Modified\n");}
+		$this->startResponse(304);
+		return true;
+	}
+
+	/**
+	 * Sends a redirect response to the client.
+	 *
+	 * @param   string   redirected url
+	 * @param   integer  redirection response code
+	 * @return  bool
+	 */
+	public function sendRedirect($url, $code=302)
+	{
+		if ($this->debug) {cecho("Client ({$this->ID}) ... redirecting to: {$url}\n");}
+
+		// Build the redirect response
+		$message = 'Redirecting to <a href="'.$url.'">here</a>';
+		$this->startResponse($code)
+			->setHeader('Location', $url)
+			->setHeader('Content-Type', 'text/html')
+			->setHeader('Content-Length', strlen($message))
+			->append($message)
+		;
+
+		// Return to the main loop
+		return true;
 	}
 	
 	/**
