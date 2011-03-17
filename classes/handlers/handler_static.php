@@ -30,13 +30,13 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 		return false;
 	}
 	
-	public function execute()
+	public function execute($new=true, $nocache=false)
 	{
 		// Get the requested file details
 		$filepath = $this->request->getFilepath();
 		$filename = $this->request->getFileName();
 		
-		if (!$filepath || !is_file($filepath)) {
+		if ($new && (!$filepath || !is_file($filepath))) {
 		
 			// Cannot find the requested file
 			$this->error = "File not found ({$filename})";
@@ -51,7 +51,7 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 		$this->returnValue = true;
 		
 		// Check for any last modified query
-		if ($this->request->hasHeader('if-modified-since')) {
+		if (!$nocache && $this->request->hasHeader('if-modified-since')) {
 			$mtime = filemtime($filepath);
 			$ifmod = strtotime($this->request->getHeader('if-modified-since'));
 			if ($this->debug) {cecho("Client ({$this->client->getID()}) ... last modified query: if:{$ifmod} mt:{$mtime}\n");}
@@ -64,7 +64,7 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 		}
 		
 		// Serve the static file
-		$this->startStatic($filepath, $this->info['extension']);
+		$this->startStatic($filepath, $this->info['extension'], $new);
 		return true;
 	}
 
@@ -79,9 +79,10 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 	 *
 	 * @param   string  path to the requested file
 	 * @param   string  extension of the requested file
+	 * @param   bool    create a new response object?
 	 * @return  void
 	 */
-	public function startStatic($file, $ext, $new=true)
+	protected function startStatic($file, $ext, $new=true)
 	{
 		// Get the response object
 		if ($new) {$this->client->startResponse();}

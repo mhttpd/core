@@ -802,7 +802,7 @@ class MiniHTTPD_Client
 				
 			// Check for any X-SendFile request
 			} elseif ($this->response->hasHeader('X-SendFile')) {
-				return $this->sendFileX(str_replace('"', '', $this->response->getHeader('X-SendFile')));
+				return $this->sendFileX($this->response->getHeader('X-SendFile'));
 			
 			// Check chunked transfer-encoding
 			} elseif ($this->fcgi->isChunking()) {
@@ -824,7 +824,7 @@ class MiniHTTPD_Client
 		}
 	}
 		
-	//-------------	CLIENT RESPONSES ----------------------------------------------
+	//-------------	SERVER CLIENT RESPONSES ----------------------------------------
 
 	/**
 	 * Sends an error response to the client.
@@ -910,20 +910,29 @@ class MiniHTTPD_Client
 	 * usually set the Content-Disposition and Content-Type headers for sending files
 	 * as attachments, otherwise the file contents will be displayed in the browser.
 	 *
-	 * @param   string  full path of the filename to send
+	 * Examples of valid X-SendFile headers:
+	 *
+	 * x-SendFile: "full_file_path"            <- will use cache info
+	 * x-SendFile: "full_file_path"; nocache   <- will ignore cache info
+	 *
+	 * @param   string  the X-SendFile header value
 	 * @return  bool    true if the file was sent successfully
 	 */
-	protected function sendFileX($file)
+	protected function sendFileX($sendfile)
 	{
-		if ($this->debug) {cecho("Client ({$this->ID}) ... X-SendFile: $file\n");}
-
-		// Remove unneeded headers from the FCGI response
-		$this->response->removeHeader('X-SendFile');
-		$this->response->removeHeader('Content-type');
-
+		if ($this->debug) {cecho("Client ({$this->ID}) ... X-SendFile: $sendfile\n");}
+		
+		// Parse the X-SendFile header values
+		$info = explode(';', $sendfile);
+		$file = str_replace('"', '', array_shift($info));
+		$opts = array();
+		while ($val = array_shift($info)) {
+			$opts[trim($val)] = 1;
+		}
+		
 		// Is the requested file a valid one?
 		if ( !($file = realpath($file))
-			|| !stripos($file, $this->request->getDocroot())
+			|| stripos($file, $this->request->getDocroot()) !== 0
 			|| !is_file($file)
 			) {
 			$this->sendError(404, 'The requested file was not found on this server.');
@@ -937,16 +946,15 @@ class MiniHTTPD_Client
 		}
 		$handler->init($this);
 
-		// Send the file now as an attachment?
-		if ($this->response->hasHeader('Content-Disposition')) {
-			$ext = pathinfo($file, PATHINFO_EXTENSION);
-			$handler->startStatic($file, $ext, false);
-			return true;
-		}
-			
-		// Send as an ordinary static file for browser display
+		// Remove unneeded headers from the FCGI response
+		$this->response->removeHeader('X-SendFile')
+			->removeHeader('Content-Encoding', true)
+			->removeHeader('Content-type')
+		;
+					
+		// Send the static file using the current response object
 		$this->request->setFilepath($file)->refreshFileInfo();
-		if ($handler->matches() && $handler->execute()) {
+		if ($handler->matches() && $handler->execute(false, isset($opts['nocache']))) {
 			return $handler->getReturn();
 		}
 		
