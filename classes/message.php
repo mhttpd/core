@@ -254,7 +254,7 @@ class MiniHTTPD_Message
 	 * Determines whether a header by the given name exists.
 	 *
 	 * @param   string  the header name
-	 * @param   bool    is the search case-insensitive
+	 * @param   bool    is the search case-insensitive?
 	 * @return  bool    true if header found
 	 */
 	public function hasHeader($name, $nocase=false)
@@ -281,9 +281,12 @@ class MiniHTTPD_Message
 		}
 		
 		// Case-insensitive search
-		$search = array_combine(array_map('strtolower',array_keys($this->headers)), array_keys($this->headers));
-		$name = strtolower($name);
-		return isset($search[$name]) ? $this->headers[$search[$name]] : '';
+		foreach ($this->headers as $hname=>$value) {
+			if (strtolower($hname) == strtolower($name)) {
+				return $this->headers[$hname];
+			}
+		}
+		return '';
 	}
 
 	/**
@@ -327,13 +330,23 @@ class MiniHTTPD_Message
 	 * Removes a header from the current message.
 	 *
 	 * @param   string  the header name
-	 * @void
+	 * @param   bool    should the search be case-insensitive?
+	 * @return  MiniHTTPD_Message  this instance
 	 */
-	public function removeHeader($name)
+	public function removeHeader($name, $nocase=false)
 	{
-		if (isset($this->headers[$name])) {
+		if (!$nocase && isset($this->headers[$name])) {
 			unset($this->headers[$name]);
+			return $this;
 		}
+		
+		// Case-insensitive search
+		foreach ($this->headers as $hname=>$value) {
+			if (strtolower($hname) == strtolower($name)) {
+				unset($this->headers[$name]);
+			}
+		}
+		return $this;
 	}
 	
 	/**
