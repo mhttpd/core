@@ -379,20 +379,23 @@ class MiniHTTPD_Client
 	public function sendResponse($finish=true)
 	{
 		if (!$this->hasResponse()) {return false;}
-		if ($this->debug) {cecho(":\n\n");}
+		if ($this->debug) {cecho(":\n");}
 		$sent = array();
 		
 		if (!$this->sentHeaders) {
 
 			// Get the response header block
 			$header = $this->response->getHeaderBlock();
-			if ($this->debug) {cecho("$header");}
+			if ($this->debug) {cecho("\n$header");}
 
 			// Write the response header to the socket
 			$bytes = @fwrite($this->socket, $header);
 			$this->response->addBytesSent($bytes);
 			$sent[] = $bytes;
 			$this->sentHeaders = true;	
+		
+		} elseif ($this->debug) {
+			cecho("\n");
 		}
 		
 		if (!$this->request->isHead()) {

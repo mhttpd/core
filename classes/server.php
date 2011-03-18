@@ -585,7 +585,11 @@ class MiniHTTPD_Server
 			
 			} elseif ($client->isChunking() && !$client->hasOpenFCGI()) {
 				
-				// The client has finished sending chunked output from an FCGI response
+				// Flush any remaining chunked output
+				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... flushing ");}
+				$client->sendResponse();
+				
+				// Finish the chunked response
 				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... chunking ended ");}
 				$client->finish();
 			
@@ -598,7 +602,7 @@ class MiniHTTPD_Server
 			
 			// Complete logging
 			if (!$client->isStreaming() && !$client->isChunking()) {
-				if (MHTTPD::$debug) {cecho("... done\n");}
+				if (MHTTPD::$debug) {cecho("... done\n\n");}
 				$client->writeLog();
 			}
 		}

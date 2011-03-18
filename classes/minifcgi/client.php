@@ -295,18 +295,15 @@ class MiniFCGI_Client
 				trigger_error('FCGI server returned error', E_USER_WARNING);
 			}
 			
-			// Check chunked transfer-encoding
-			if ($this->chunking) {
-				break;
-				
-			} elseif ($response->hasAllHeaders()) {
+			// Check chunked transfer-encoding				
+			if ($response->hasAllHeaders()) {
 				
 				// Skip if response is already chunked or is an error message
-				if ($response->isChunked() || $response->hasErrorCode()) {
+				if (!$this->chunking && ($response->isChunked() || $response->hasErrorCode())) {
 					continue;
 				
-				// Go into chunking mode if response exceeds buffer
-				} elseif (strlen($response->getBody()) > MFCGI::MAX_LENGTH) {
+				// Use chunking mode if response exceeds buffer size
+				} elseif ($response->getContentLength() >= (MFCGI::MAX_LENGTH - 8)) {
 					$this->chunking = true;
 					break;
 				}
