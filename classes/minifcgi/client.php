@@ -141,7 +141,7 @@ class MiniFCGI_Client
 		// For POST requests add content details
 		if ($request->isPost()) {
 			$p['CONTENT_TYPE'] = $request->getContentType();
-			$content =& $request->getBody();
+			$content = $request->getBody();
 			$p['CONTENT_LENGTH'] = $request->getContentLength();
 		} else {
 			$content = '';
