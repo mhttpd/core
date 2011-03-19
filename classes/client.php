@@ -417,7 +417,7 @@ class MiniHTTPD_Client
 					$sent[] = $bytes;
 				}
 
-			} elseif ($this->chunking) {
+			} elseif ($this->chunking && $body != '') {
 
 				// Send the current body as a new chunk
 				if ($this->debug) {cecho('Sending chunked ... ');}
@@ -540,7 +540,7 @@ class MiniHTTPD_Client
 	 */
 	public function hasRequest()
 	{
-		return !empty($this->request);
+		return $this->request instanceof MHTTPD_Request;
 	}
 
 	/**
@@ -553,6 +553,16 @@ class MiniHTTPD_Client
 		return $this->response instanceof MHTTPD_Response;
 	}
 
+	/**
+	 * Determines whether the client has any waiting content to send.
+	 *
+	 * @return  bool
+	 */
+	public function hasResponseContent()
+	{
+		return $this->response->getContentLength() > 0;
+	}
+	
 	/**
 	 * Returns the client stream socket.
 	 *

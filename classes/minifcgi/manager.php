@@ -266,7 +266,7 @@ class MiniFCGI_Manager
 	 *
 	 * Currently this only decrements the client count for the specified process.
 	 *
-	 * @param   integer  the stored client ID number
+	 * @param   integer  the stored process ID number
 	 * @return  bool
 	 */
 	public static function removeClient($ID)
