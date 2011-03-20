@@ -639,10 +639,13 @@ class MiniHTTPD_Server
 		}
 	
 		// Finish up
-		$client->finish();
+		if (!$client->isFinished()) {
+			$client->finish();
+			if (MHTTPD::$debug) {cecho("\n");}
+			$client->writeLog();
+		}
 		if (MHTTPD::$debug) {cecho("\n");}
 		MHTTPD::closeSocket($client->getSocket());
-		$client->writeLog();
 		unset(MHTTPD::$clients[$clientID]);
 	}
 
