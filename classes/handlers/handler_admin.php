@@ -57,7 +57,9 @@ class MiniHTTPD_Handler_Admin extends MHTTPD_Handler
 
 		// Load and process the template
 		$content = file_get_contents(MHTTPD::getServerDocroot().'templates\server_status.tpl');
-		$tags = array(':version:', ':clients:', ':fcgiscoreboard:', ':requesthandlers:', ':signature:');
+		$tags = array(':version:', ':launched:', ':trafficup:', ':trafficdown:', ':clients:', ':fcgiscoreboard:',
+			':requesthandlers:', ':signature:'
+		);
 		$values = MHTTPD::getServerStatusInfo();
 		$content = str_replace($tags, $values, $content);
 

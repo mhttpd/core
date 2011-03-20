@@ -283,6 +283,9 @@ class MiniHTTPD_Client
 		$request->debug = $this->debug;
 		$this->reprocessing = false;
 		
+		// Add input size to server stats
+		MHTTPD::addStatCount('up', strlen($this->input));
+		
 		// Parse the request
 		$request->parse($this->input);
 
@@ -304,7 +307,8 @@ class MiniHTTPD_Client
 			// With Content-Length set
 			if ($clen = $request->getContentLength()) {
 				$request->setBody(@fread($this->socket, $clen));
-			
+				MHTTPD::addStatCount('up', $clen);
+				
 			// With Transfer-Encoding: chunked
 			} elseif ($request->isChunked()) {
 				$body = '';
@@ -312,6 +316,7 @@ class MiniHTTPD_Client
 					$body .= @fread($this->socket, 4096);
 				}
 				$request->setBody(MHTTPD_Request::unChunk($body));
+				MHTTPD::addStatCount('up', strlen($body));
 			}
 		}
 
@@ -392,7 +397,7 @@ class MiniHTTPD_Client
 			$bytes = @fwrite($this->socket, $header);
 			$this->response->addBytesSent($bytes);
 			$sent[] = $bytes;
-			$this->sentHeaders = true;	
+			$this->sentHeaders = true;
 		
 		} elseif ($this->debug) {
 			cecho("\n");
@@ -467,9 +472,6 @@ class MiniHTTPD_Client
 	{
 		if ($this->debug) {cecho("... finishing ");}
 
-		// Update the logger
-		if ($this->logger) {$this->logger->addResponse($this->response);}
-
 		// Finalize & clean up
 		$this->finished = true;
 		if ($this->streaming) {			
@@ -482,8 +484,17 @@ class MiniHTTPD_Client
 			
 			// Add chunked encoding terminator
 			@fwrite($this->socket, "0\r\n\r\n");
+			$this->response->addBytesSent(5);
 			$this->chunking = false;
 		}
+		
+		// Update the logger
+		if ($this->logger) {$this->logger->addResponse($this->response);}
+
+		// Update the server stats
+		MHTTPD::addStatCount('down', $this->response->getBytesSent());
+		
+		// Reset the attached objects
 		$this->request = null;
 		$this->fcgi = null;
 		$this->response = null;
@@ -501,6 +512,22 @@ class MiniHTTPD_Client
 			$this->logger = null;
 		}
 		return $this;
+	}
+
+	/**
+	 * Returns a formatted summary of the current client information.
+	 
+	 * @return  string  the summary info
+	 */	
+	public function getSummary()
+	{
+		$summary = '('.$this->ID.') '.$this->address.':'.$this->port;
+		if ($this->request) {
+			$summary .= ' ('.$this->request->getUrl().')';
+		} else {
+			$summary .= ' (inactive)';
+		}
+		return $summary;
 	}
 	
 	/**
@@ -540,7 +567,7 @@ class MiniHTTPD_Client
 	 */
 	public function hasRequest()
 	{
-		return $this->request instanceof MHTTPD_Request;
+		return !empty($this->request);
 	}
 
 	/**
@@ -550,7 +577,7 @@ class MiniHTTPD_Client
 	 */
 	public function hasResponse()
 	{
-		return $this->response instanceof MHTTPD_Response;
+		return !empty($this->response);
 	}
 
 	/**

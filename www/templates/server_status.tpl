@@ -12,13 +12,20 @@
     <h1>MiniHTTPD Server Status</h1>
     <p>Server Version: :version:</p>
     <hr>
-    <h3>Connected clients:</h3>
+    <h3>Server traffic summary</h3>
+    <table>
+			<tr><td width="100px">Running since: </td><td>:launched:</td></tr>
+			<tr><td>Total received: </td><td>:trafficup:</td></tr>
+			<tr><td>Total sent: </td><td>:trafficdown:</td></tr>
+		</table>
+    <br /><hr>
+    <h3>Connected clients</h3>
     <pre>:clients:</pre>
-    <hr>
-    <h3>FCGI Scoreboard:</h3>
-    <p>:fcgiscoreboard:</p>
-    <hr>
-    <h3>Request Handlers:</h3>
+    <br /><hr>
+    <h3>FastCGI scoreboard</h3>
+    <pre>:fcgiscoreboard:</pre>
+    <br /><hr>
+    <h3>Request handlers</h3>
     <pre>:requesthandlers:</pre>
 		<br /><hr>
     <address>:signature:</address>

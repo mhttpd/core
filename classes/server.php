@@ -89,7 +89,15 @@ class MiniHTTPD_Server
 	 * @var array
 	 */
 	protected static $aborted = array();
-	
+
+	/**
+	 * A list of server statistics.
+	 * @var array
+	 */
+	protected static $stats = array(
+		'up'   => 0,
+		'down' => 0,
+	);	
 	
 	// ------ Public methods ------------------------------------------------------
 			
@@ -121,6 +129,7 @@ class MiniHTTPD_Server
 		$addr = $config['Server']['address'];
 		$port = $config['Server']['port'];
 		MHTTPD::$info['signature'] = 'MiniHTTPD/'.MHTTPD::VERSION.' ('.php_uname('s').") Server at {$addr} Port {$port}";
+		MHTTPD::$info['launched'] = time();
 		
 		// Spawn any FCGI processes
 		MFCGI::$debug = MHTTPD::$debug;
@@ -298,7 +307,10 @@ class MiniHTTPD_Server
 	{
 		return array(
 			MHTTPD::getSoftwareInfo(),
-			print_r(MHTTPD::$clients, true),
+			date('r', MHTTPD::$info['launched']),
+			MHTTPD::getStatCount('up', true),
+			MHTTPD::getStatCount('down', true),
+			MHTTPD::getClientsSummary(),
 			MFCGI::getScoreboard(true),
 			MHTTPD::getHandlers(true),
 			MHTTPD::getSignature(),
@@ -410,12 +422,13 @@ class MiniHTTPD_Server
 		// Or format the list as a string
 		$ret = '';
 		foreach (MHTTPD::$handlers as $type=>$handler) {
-			$ret .= str_pad(strtoupper($type), 15, '.')
-				.' I: '.$handler->getCount('init')
-				.' M: '.$handler->getCount('match')
-				.' S: '.$handler->getCount('success')
-				.' E: '.$handler->getCount('error')
-				.PHP_EOL;
+			$ret .= str_pad(ucfirst($type.' '), 20, '.')
+				.sprintf(' I: %-4s M: %-4s S: %-4s E: %-4s', 
+					$handler->getCount('init'),
+					$handler->getCount('match'),
+					$handler->getCount('success'),
+					$handler->getCount('error')
+				).PHP_EOL;
 		}
 		
 		return $ret;
@@ -476,6 +489,62 @@ class MiniHTTPD_Server
 		return false;
 	}
 	
+	/**
+	 * Increments a named server statistic by the given amount.
+	 *
+	 * @param   string   the stat name to be incremented
+	 * @param   integer  the value to be added
+	 * @return  void
+	 */		
+	public static function addStatCount($name, $count)
+	{
+		if (isset(MHTTPD::$stats[$name])) {
+			MHTTPD::$stats[$name] += $count;
+		}
+	}
+
+	/**
+	 * Returns the server stat count of the given name.
+	 *
+	 * @param   string   the stat name
+	 * @param   bool     should the byte size be formatted?
+	 * @return  void
+	 */			
+	public static function getStatCount($name, $formatted=false)
+	{
+		if (isset(MHTTPD::$stats[$name])) {
+			return $formatted ? MHTTPD::formatSize(MHTTPD::$stats[$name]) : MHTTPD::$stats[$name];
+		}
+		return 0;
+	}
+
+	/**
+	 * Converts byte sizes to formatted strings.
+	 *
+	 * @param   integer  the value in bytes to be formatted
+	 * @param   integer  the rounding value
+	 * @return  string   the formatted value
+	 */			
+	public static function formatSize($bytes, $round=1)
+	{
+		$suffix = array('B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
+		for ($i=0; $bytes > 1024 && isset($suffix[$i+1]); $i++) {$bytes /= 1024;}
+		return round($bytes,$round)." ".$suffix[$i];
+	}
+
+	/**
+	 * Creates a brief summary list of the connected clients.
+	 *
+	 * @return  string  the formatted summary list
+	 */			
+	public static function getClientsSummary()
+	{
+		$summary = '';
+		foreach (MHTTPD::$clients as $client) {
+			$summary .= $client->getSummary()."\n";
+		}
+		return $summary;
+	}
 	
 	// ------ Protected/Private methods --------------------------------------------
 
