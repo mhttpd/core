@@ -16,6 +16,7 @@ class MiniHTTPD_Handler_Auth extends MHTTPD_Handler
 	protected $isFinal = false;
 	protected $useOnce = true;
 	protected $persist = false;
+	protected $canSkip = false;
 	protected $auth;
 
 	public function init(MiniHTTPD_Client $client)
