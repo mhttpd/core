@@ -2,6 +2,11 @@
 <html>
   <head>
     <title>MiniHTTPD Status</title>
+    <style type="text/css">
+    body {font-family: Arial, Verdana, Sans; font-size: 0.9em; color:#222222}
+		hr {border: 0; height: 1px; background-color: #888888}
+    table {font-size: 0.9em;}
+		</style>
   </head>
   <body>
     <h1>MiniHTTPD Server Status</h1>

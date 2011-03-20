@@ -2,6 +2,10 @@
 <html>
   <head>
     <title>:code: :response:</title>
+    <style type="text/css">
+    body {font-family: Arial, Verdana, Sans; font-size: 0.9em; color:#222222}
+		hr {border: 0; height: 1px; background-color: #888888}
+		</style>
   </head>
   <body>
     <h1>:response:</h1>
