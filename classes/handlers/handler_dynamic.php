@@ -38,7 +38,7 @@ class MiniHTTPD_Handler_Dynamic extends MHTTPD_Handler
 		
 			// Cannot find the requested file
 			$this->error = "File not found ({$filename})";
-			$this->returnVal = false;
+			$this->returnValue = false;
 			
 			// Send error response now
 			$this->client->sendError(404, 'The requested URL '.$this->request->getUrlPath().' was not found on this server.');
@@ -46,7 +46,7 @@ class MiniHTTPD_Handler_Dynamic extends MHTTPD_Handler
 		}
 
 		// Start the FCGI request in the calling client
-		$this->returnVal = $this->sendFCGIRequest();
+		$this->returnValue = $this->sendFCGIRequest();
 		return true;
 	}
 
