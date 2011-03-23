@@ -77,6 +77,12 @@ class MiniHTTPD_Message
 		507 => 'Insufficient Storage',
 		509 => 'Bandwidth Limit Exceeded'
 	);
+
+	/**
+	 * List of response types that should not include a body
+	 * @var array
+	 */	
+	public static $withoutBody = array(100, 101, 204, 205, 304);
 	
 	/**
 	 * Returns a formatted HTTP status line.

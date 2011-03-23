@@ -389,6 +389,9 @@ class MiniHTTPD_Client
 		
 		if (!$this->sentHeaders) {
 
+			// Verify the response before sending
+			$this->response->verify();
+
 			// Get the response header block
 			$header = $this->response->getHeaderBlock();
 			if ($this->debug) {cecho("\n$header");}

@@ -352,4 +352,28 @@ class MiniHTTPD_Response extends MHTTPD_Message
 		return $this;
 	}	
 	
+	/**
+	 * Completes a final check on the response before sending it to ensure
+	 * compliance with HTTP/1.1.
+	 *
+	 * @return  MiniHTTPD_Request  this instance
+	 */	
+	public function verify()
+	{
+		// Remove body if not allowed by the message type
+		if (isset($this->body) && $this->body != '' 
+			&& in_array($this->code, MHTTPD_Message::$withoutBody)
+			) {
+			
+			// Remove any unneeded headers
+			$this->removeHeader('Content-Length', true);
+			$this->removeHeader('Transfer-Encoding', true);
+			
+			// Remove the body
+			$this->body = '';
+		}
+		
+		return $this;
+	}
+	
 } // End MiniHTTPD_Response
