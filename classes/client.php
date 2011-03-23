@@ -700,6 +700,17 @@ class MiniHTTPD_Client
 	{
 		return $this->response;
 	}
+
+	/**
+	 * Nulls the current response object.
+	 *
+	 * @return  MiniHTTPD_Client  this instance
+	 */
+	public function clearResponse()
+	{
+		$this->response = null;
+		return $this;
+	}
 	
 	/**
 	 * Determines whether the client is currently reprocessing the request.
@@ -820,7 +831,7 @@ class MiniHTTPD_Client
 	 */
 	public function readFCGIResponse()
 	{
-		if ($this->response == null) {
+		if ($this->response == null || !$this->chunking) {
 
 			// Create the client response
 			$this->startResponse();

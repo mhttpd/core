@@ -112,6 +112,7 @@ class MiniHTTPD_Handler_Auth extends MHTTPD_Handler
 		}
 		
 		// Successfully authorized
+		$this->client->clearResponse();
 		return true;
 	}
 	
