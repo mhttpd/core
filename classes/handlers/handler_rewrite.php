@@ -35,6 +35,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 			'replace'  => '/page.php/$1',		// appends whole URL to page.php
 			'isFile'   => false,						// ignores all existing files
 			'isDir'    => false,						// ignores all existing directories
+			'strict'   => true, 						// checks for filename extensions
 			'last'     => true,							// no further rules will be applied
 			'redirect' => false,						// won't send any redirect info
 		),
@@ -43,8 +44,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 	public function matches() 
 	{
 		$url = $this->request->getUrl();
-		$info = $this->request->getFileInfo();
-		$ext = isset($info['extension']) ? true : false;
+		$ext = pathinfo($this->request->getFilename(), PATHINFO_EXTENSION);
 		
 		// Process each defined rule
 		foreach ($this->rules as $name=>$rule) {
@@ -53,7 +53,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 			$matched = false;
 			
 			// Test rules that shouldn't match files or directories
-			if ((!$ext && !$rule['isFile'] && !$rule['isDir']) 
+			if (((!$rule['strict'] || !$ext) && !$rule['isFile'] && !$rule['isDir']) 
 				&& !file_exists($this->request->getUrlFilepath())
 				) {
 				$matched = true;
