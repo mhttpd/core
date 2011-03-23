@@ -220,7 +220,9 @@ class MiniFCGI_Manager
 						$port = $info['port'];
 						$ID = $iID;
 					}
-					if (MFCGI::$debug) {cecho("using least busy process: {$ID} (C:{$clients})\n");}
+				}
+				if (MFCGI::$debug && !empty($address)) {
+					cecho("using least busy process: {$ID} (C:{$clients})\n");
 				}
 			}
 			
@@ -361,6 +363,7 @@ class MiniFCGI_Manager
 		));
 				
 		// Get the PID value from the response header
+		if (MFCGI::$debug) {cecho("Getting PID ... ");}
 		if ($fcgi->sendRequest() && $fcgi->readResponse()
 			&& $fcgi->getResponse()->hasHeader('X-PID')
 			) {
@@ -389,6 +392,8 @@ class MiniFCGI_Manager
 	 */
 	protected static function createProcess($ID, $bind, $cwd)
 	{
+		if (MFCGI::$debug) {cecho("Creating new FCGI process (P: $ID)\n");}
+		
 		// Set environment variables
 		putenv('PHP_FCGI_MAX_REQUESTS='.MFCGI::$config['max_requests']);
 		putenv('FCGI_WEB_SERVER_ADDRS='.MFCGI::$config['allow_from']);

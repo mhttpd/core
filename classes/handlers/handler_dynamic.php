@@ -67,7 +67,7 @@ class MiniHTTPD_Handler_Dynamic extends MHTTPD_Handler
 
 		// Start the FCGI request
 		if (!$fcgi->addRequest($this->request) || !$fcgi->sendRequest()) {
-			$this->sendError(502, 'The FCGI process did not respond correctly.');
+			$this->client->sendError(408, 'The FCGI process could not be reached at this time.');
 			return false;
 		}
 		$this->client->addFCGIClient($fcgi);
