@@ -356,7 +356,7 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	 * Completes a final check on the response before sending it to ensure
 	 * compliance with HTTP/1.1.
 	 *
-	 * @return  MiniHTTPD_Request  this instance
+	 * @return  MiniHTTPD_Response  this instance
 	 */	
 	public function verify()
 	{

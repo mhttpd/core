@@ -299,8 +299,6 @@ class MiniHTTPD_Server
 	/**
 	 * Returns information for listing on the Server Status page.
 	 *
-	 * @todo Actually output something more useful for the Server Status page.
-	 *
 	 * @return  array  server status information
 	 */		
 	public static function getServerStatusInfo()
