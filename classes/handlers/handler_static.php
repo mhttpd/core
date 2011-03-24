@@ -14,6 +14,7 @@
 class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 {
 	protected $isFinal = true;
+	protected $mimes;
 	protected $info;
 	
 	public function matches()
@@ -74,6 +75,11 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 		$this->info = null;
 	}
 
+	public function __construct()
+	{
+		$this->mimes = MHTTPD::getMimeTypes();
+	}
+	
 	/**
 	 * Initializes the response object for static requests.
 	 *
@@ -102,8 +108,12 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 				case 'css':
 					$mime = 'text/css; charset=utf-8'; break;
 				default:
-					$finfo = new finfo(FILEINFO_MIME);
-					$mime = $finfo->file($file);
+					if (isset($this->mimes[$ext])) {
+						$mime = $this->mimes[$ext][0];
+					} else {
+						$finfo = new finfo(FILEINFO_MIME);
+						$mime = $finfo->file($file);
+					}
 					$mime = !empty($mime) ? $mime : 'application/octet-stream';
 			}
 			$response->setHeader('Content-Type', $mime);

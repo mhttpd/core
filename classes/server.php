@@ -20,7 +20,7 @@ class MiniHTTPD_Server
 	/**
 	 * Current software version.
 	 */
-	const VERSION = '0.5';
+	const VERSION = '0.6';
 	
 	/**
 	 * Supported HTTP protocol version.
@@ -124,6 +124,10 @@ class MiniHTTPD_Server
 		}
 		MHTTPD::addConfig($config);
 
+		// Load the mime types info
+		$mimes = @parse_ini_file(EXEPATH.'lib\minihttpd\mimes.ini', true);
+		MHTTPD::$config['Mimes'] = array_map('listToArray', $mimes['Mimes']);
+		
 		// Set the initial server info values
 		MHTTPD::$info['software'] = 'MiniHTTPD/'.MHTTPD::VERSION.' ('.php_uname('s').')';
 		$addr = $config['Server']['address'];
@@ -134,7 +138,7 @@ class MiniHTTPD_Server
 		// Spawn any FCGI processes
 		MFCGI::$debug = MHTTPD::$debug;
 		MFCGI::spawn(null, MHTTPD::$config);
-
+	
 		// Load the configured request handlers
 		if (MHTTPD::$debug) {cecho("------------------------------------\n");}
 		foreach (MHTTPD::$config['Handlers'] as $type=>$handler) {
@@ -542,6 +546,16 @@ class MiniHTTPD_Server
 			$summary .= $client->getSummary()."\n";
 		}
 		return $summary;
+	}
+
+	/**
+	 * Returns the list of configured mime types.
+	 *
+	 * @return  string  the mime types list
+	 */			
+	public static function getMimeTypes()
+	{
+		return MHTTPD::$config['Mimes'];
 	}
 	
 	// ------ Protected/Private methods --------------------------------------------
