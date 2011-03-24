@@ -46,7 +46,7 @@ if(php_sapi_name() == 'cli') {
 // Parse the configuration file
 if ($inifile = glob(INIPATH.'/*.ini')) {$inifile = $inifile[0];}
 if ( !($config = @parse_ini_file($inifile, true))
-	&& !($config = @parse_ini_file('default.ini', true))
+	&& !($config = @parse_ini_file('config\default.ini', true))
 	) {
 	trigger_error("Could not load configuration file\n", E_USER_ERROR);
 }
@@ -87,7 +87,7 @@ $config['Paths']['logs'] = $logs.$DS;
 ini_set('error_log', $logs.'\mhttpd_errors.log');
 
 // Add any local include paths
-$paths = array(EXEPATH.'lib', EXEPATH.'lib\pear\classes');
+$paths = array(EXEPATH.'lib', EXEPATH.'lib\minihttpd\config', EXEPATH.'lib\pear\classes');
 foreach ($paths as $path) {
 	if (strpos(get_include_path(), $path) === false) {
 		set_include_path(get_include_path().PATH_SEPARATOR.$path);

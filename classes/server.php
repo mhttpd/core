@@ -125,7 +125,7 @@ class MiniHTTPD_Server
 		MHTTPD::addConfig($config);
 
 		// Load the mime types info
-		$mimes = @parse_ini_file(EXEPATH.'lib\minihttpd\mimes.ini', true);
+		$mimes = @parse_ini_file(EXEPATH.'lib\minihttpd\config\mimes.ini', true);
 		MHTTPD::$config['Mimes'] = array_map('listToArray', $mimes['Mimes']);
 		
 		// Set the initial server info values
@@ -551,7 +551,7 @@ class MiniHTTPD_Server
 	/**
 	 * Returns the list of configured mime types.
 	 *
-	 * @return  string  the mime types list
+	 * @return  array  the mime types list
 	 */			
 	public static function getMimeTypes()
 	{
