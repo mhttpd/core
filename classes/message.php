@@ -395,7 +395,7 @@ class MiniHTTPD_Message
 	 */
 	public function getBody()
 	{
-		if ($this->hasStream()) {
+		if (($this instanceof MiniHTTPD_Response) && $this->hasStream()) {
 			return $this->stream;
 		} else {
 			return $this->body;
