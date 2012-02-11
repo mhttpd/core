@@ -9,7 +9,7 @@
  * @package    MiniHTTPD
  * @subpackage Launcher
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */ 
 
@@ -17,6 +17,9 @@
 set_time_limit(0);
 
 $DS = DIRECTORY_SEPARATOR;
+
+// Get any valid commandline options
+$options = getopt('d', array('debug'));
 
 // Set the root path for the MiniHTTPD files
 if (!defined('EXEPATH') && isset($_ENV['MHTTPD_ROOT'])) {
@@ -37,11 +40,7 @@ if (!defined('INIPATH') && isset($_ENV['MHTTPD_INIPATH'])) {
 }
 
 // Are we running with a console?
-if(php_sapi_name() == 'cli') {
-	define('HAS_CONSOLE', 1);
-} else {
-	define('HAS_CONSOLE', 0);
-}
+define('HAS_CONSOLE', (php_sapi_name() == 'cli'));
 
 // Parse the configuration file
 if ($inifile = glob(INIPATH.'/*.ini')) {$inifile = $inifile[0];}
@@ -86,19 +85,27 @@ $config['Paths']['logs'] = $logs.$DS;
 // Set the error log for the server process
 ini_set('error_log', $logs.'\mhttpd_errors.log');
 
-// Add any local include paths
-$paths = array(EXEPATH.'lib', EXEPATH.'lib\minihttpd\config', EXEPATH.'lib\pear\classes');
+// Start with a clean include paths list
+set_include_path('.');
+
+// Add the local include paths
+$paths = array(EXEPATH.'lib', EXEPATH.'lib\minihttpd\config', EXEPATH.'lib\pear');
 foreach ($paths as $path) {
 	if (strpos(get_include_path(), $path) === false) {
 		set_include_path(get_include_path().PATH_SEPARATOR.$path);
 	}
 }
 
+// Set the debug option
+if (isset($options['d']) || isset($options['debug'])) {
+	$config['Debug']['enabled'] = '1';
+}
+
 // Clean up the launch variables
-unset($DS, $docroot, $server_docroot, $temp, $logs, $paths, $path);
+unset($DS, $docroot, $server_docroot, $temp, $logs, $paths, $path, $options);
 
 // Load the helper functions file
-require 'functions\common.php';
+require 'helpers\common.php';
 
 // Load the required classes
 if (!@include 'user_classes.php') {
