@@ -959,22 +959,27 @@ class MiniHTTPD_Client
 	 * Implements X-SendFile requests from FCGI processes.
 	 *
 	 * If the FCGI returns an X-SendFile header containing a valid filename within
-	 * the configured docroot, the server will send the static file directly. This 
+	 * the configured paths, the server will stream the static file directly. This 
 	 * is especially useful for large file transfers. The FCGI script should also 
 	 * usually set the Content-Disposition and Content-Type headers for sending files
 	 * as attachments, otherwise the file contents will be displayed in the browser.
+	 * The X-SendFile header may be a semi-colon separated list of values, the first
+	 * of which must always be the absolute path to the file. Options include:
+	 *
+	 * - nocache  :  will ignore cache info, last-modified checks
+	 * - encoded  :  will not remove any Content-Encoding header
 	 *
 	 * Examples of valid X-SendFile headers:
 	 *
-	 * x-SendFile: "full_file_path"            <- will use cache info
-	 * x-SendFile: "full_file_path"; nocache   <- will ignore cache info
+	 * - X-SendFile: "full_file_path"
+	 * - X-SendFile: "full_file_path"; nocache; encoded
 	 *
 	 * @param   string  the X-SendFile header value
 	 * @return  bool    true if the file was sent successfully
 	 */
 	protected function sendFileX($sendfile)
 	{
-		if ($this->debug) {cecho("Client ({$this->ID}) ... X-SendFile: $sendfile\n");}
+		if ($this->debug) {cecho("Client ({$this->ID}) ... X-SendFile: {$sendfile}\n");}
 		
 		// Parse the X-SendFile header values
 		$info = explode(';', $sendfile);
@@ -984,13 +989,21 @@ class MiniHTTPD_Client
 			$opts[trim($val)] = 1;
 		}
 		
+		// Get the valid search paths
+		$paths = MHTTPD::getSendFilePaths();
+		$valid = false;
+		clearstatcache();
+		
+		// Check the absolute filepath
+		$file = realpath($file);
+		
 		// Is the requested file a valid one?
-		if ( !($file = realpath($file))
-			|| stripos($file, $this->request->getDocroot()) !== 0
-			|| !is_file($file)
-			) {
+		if (is_file($file)) foreach ($paths as $path) {
+			if (stripos($file, $path) === 0) {$valid = true; break;}
+		}		
+		if (!$valid) {
 			$this->sendError(404, 'The requested file was not found on this server.');
-			return false;		
+			return false;			
 		}
 		
 		// Get the configured static request handler
@@ -1001,11 +1014,11 @@ class MiniHTTPD_Client
 		$handler->init($this);
 
 		// Remove unneeded headers from the FCGI response
-		$this->response->removeHeader('X-SendFile')
-			->removeHeader('Content-Encoding', true)
-			->removeHeader('Content-type')
-		;
-					
+		$this->response->removeHeader('X-SendFile')->removeHeader('Content-type');
+		if (!isset($opts['encoded'])) {
+			$this->response->removeHeader('Content-Encoding', true);
+		}
+		
 		// Send the static file using the current response object
 		$this->request->setFilepath($file)->refreshFileInfo();
 		if ($handler->matches() && $handler->execute(false, isset($opts['nocache']))) {

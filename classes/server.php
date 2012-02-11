@@ -97,6 +97,12 @@ class MiniHTTPD_Server
 	protected static $aborted = array();
 
 	/**
+	 * A list of paths from which X-SendFile request may be served.
+	 * @var array
+	 */	
+	protected static $send_file_paths = array();
+	
+	/**
 	 * A list of server statistics.
 	 * @var array
 	 */
@@ -220,6 +226,29 @@ class MiniHTTPD_Server
 	public static function getServerDocroot() 
 	{
 		return MHTTPD::$config['Paths']['server_docroot'];
+	}
+
+	/**
+	 * Returns the list of paths from which X-SendFile requests may be served.
+	 *
+	 * @return  array  a list of absolute paths
+	 */
+	public static function getSendFilePaths() 
+	{
+		if (!empty(MHTTPD::$send_file_paths)) {
+			return MHTTPD::$send_file_paths;
+		}
+		
+		// Store the absolute paths
+		$paths = listToArray(MHTTPD::$config['Paths']['send_file']);
+		$real_paths = array();
+		foreach ($paths as $path) {
+			if (($rpath = realpath(INIPATH.$path)) || ($rpath = realpath($path))) {
+				$real_paths[] = $rpath;
+			}
+		}
+		MHTTPD::$send_file_paths = $real_paths;
+		return $real_paths;
 	}
 	
 	/**
