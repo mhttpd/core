@@ -349,6 +349,7 @@ class MiniHTTPD_Server
 			MHTTPD::getStatCount('down', true),
 			MHTTPD::getClientsSummary(),
 			MFCGI::getScoreboard(true),
+			MHTTPD::getAbortedSummary(),
 			MHTTPD::getHandlers(true),
 			MHTTPD::getSignature(),
 		);
@@ -584,6 +585,22 @@ class MiniHTTPD_Server
 	}
 
 	/**
+	 * Creates a brief summary list of any aborted requests.
+	 *
+	 * @return  string  the formatted summary list
+	 */			
+	public static function getAbortedSummary() 
+	{
+		$summary = '';
+		foreach (MHTTPD::$aborted as $num=>$ab) {
+			$summary .= "({$num}) C: {$ab['client']}, F: {$ab['fcgi_client']}, "
+				. "P: {$ab['process']} ({$ab['pid']}), T: {$ab['time']}\n";
+		}
+		$summary = $summary != '' ? $summary : 'None';
+		return $summary;
+	}
+	
+	/**
 	 * Returns the list of configured mime types.
 	 *
 	 * @return  array  the mime types list
@@ -592,6 +609,7 @@ class MiniHTTPD_Server
 	{
 		return MHTTPD::$config['Mimes'];
 	}
+
 	/**
 	 * Returns the default formatted charset string.
 	 *
@@ -758,16 +776,25 @@ class MiniHTTPD_Server
 	{
 		$clientID = $client->getID();
 				
-		if (MHTTPD::$debug) {cecho("Client ({$clientID}) ... removing ");}
+		if (MHTTPD::$debug) {cecho("Client ({$clientID}) ... removing client ");}
 		
 		// Has an FCGI request been aborted?
-		if ($client->hasFCGI() && !$client->hasResponse()) {
+		if ($client->hasOpenFCGI()) {
+			
+			// Queue the aborted request for handling later
 			MHTTPD::$aborted[] = array(
 				'client' => $clientID,
 				'fcgi_client' => $client->getFCGIClientID(),
 				'process' => $client->getFCGIProcess(),
+				'pid' => MFCGI::getPID($client->getFCGIProcess()),
 				'socket' => $client->getFCGISocket(),
+				'time' => time(),
 			);
+			
+			if (MHTTPD::$debug) {
+				cecho("\nClient ({$clientID}) ... aborted FCGI request");
+				cecho("\nClient ({$clientID}) ");
+			}
 		}
 	
 		// Finish up
