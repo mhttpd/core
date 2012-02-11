@@ -402,9 +402,26 @@ class MiniHTTPD_Message
 		}
 	}
 
+	/**
+	 * Sets the message body.
+	 *
+	 * @return  string|resource
+	 */	
 	public function setBody($input)
 	{
 		$this->body = $input;
+	}
+
+	/**
+	 * Appends the given input value to the existing message body.
+	 *
+	 * @param   string  input value
+	 * @return  MiniHTTPD_Message  this instance
+	 */
+	public function append($input)
+	{
+		$this->body .= $input;
+		return $this;
 	}
 	
 	/**

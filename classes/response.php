@@ -10,7 +10,7 @@
  *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Response extends MHTTPD_Message
@@ -145,18 +145,6 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	public function hasStream()
 	{
 		return !empty($this->stream) && is_resource($this->stream);
-	}
-			
-	/**
-	 * Appends the given input value to the existing response body.
-	 *
-	 * @param   string  input value
-	 * @return  MiniHTTPD_Response  this instance
-	 */
-	public function append($input)
-	{
-		$this->body .= $input;
-		return $this;
 	}
 
 	/**
