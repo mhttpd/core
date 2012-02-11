@@ -3,17 +3,17 @@
   <head>
     <title>MiniHTTPD Server  Info</title>
     <style type="text/css">
-    body {font-family: Arial, Verdana, Sans; font-size: 0.9em; color:#222222}
-		hr {border: 0; height: 1px; background-color: #888888}
-		</style>
+      body {font-family: Arial, Verdana, Sans; font-size: 0.9em; color:#222222;}
+      hr {border: 0; height: 1px; background-color: #888888; width: 100% !important;}
+    </style>
   </head>
   <body>
     <h1>MiniHTTPD Server Info</h1>
     <p>Currently configured PHP information for the server.</p>
     <hr>
     :info:
-		<br /><hr>
+    <br /><hr>
     <address>:signature:</address>
-		<br /><br />
+    <br /><br />
   </body>
 </html>
