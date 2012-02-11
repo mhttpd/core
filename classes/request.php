@@ -9,7 +9,7 @@
  *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Request extends MHTTPD_Message
@@ -158,7 +158,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 			$docroot = $this->docroot;
 		} else {
 			$docroot = $dcroot;
-		}		
+		}
 		
 		// Initialize
 		$DS = DIRECTORY_SEPARATOR;
