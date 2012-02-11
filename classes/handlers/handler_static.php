@@ -83,6 +83,10 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 	/**
 	 * Initializes the response object for static requests.
 	 *
+	 * @todo add support for Range, Content-Range / 206 Partial Content
+	 * http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
+	 * http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.16
+	 *
 	 * @param   string  path to the requested file
 	 * @param   string  extension of the requested file
 	 * @param   bool    create a new response object?
@@ -100,27 +104,29 @@ class MiniHTTPD_Handler_Static extends MHTTPD_Handler
 			->setHeader('Content-Length', filesize($file))
 		;
 
-		// Get the mime type for the requested file
+		// Set the content-type for the requested file
 		if ($new || !$response->hasHeader('Content-Type')) {
-			switch ($ext) {
-				case 'html':
-					$mime = 'text/html; charset=utf-8'; break;
-				case 'css':
-					$mime = 'text/css; charset=utf-8'; break;
-				default:
-					if (isset($this->mimes[$ext])) {
-						$mime = $this->mimes[$ext][0];
-					} else {
-						$finfo = new finfo(FILEINFO_MIME);
-						$mime = $finfo->file($file);
-					}
-					$mime = !empty($mime) ? $mime : 'application/octet-stream';
+		
+			// Get the mime type
+			if (isset($this->mimes[$ext])) {
+				$type = $this->mimes[$ext][0];
+			} else {
+				$finfo = new finfo(FILEINFO_MIME);
+				$type = $finfo->file($file);
 			}
-			$response->setHeader('Content-Type', $mime);
+			if ($type == '') {$type = 'application/octet-stream';}
+			
+			// Add any default charset info
+			if (preg_match('@text/(plain|html)@', $type)) {
+				$type .= MHTTPD::getDefaultCharset();
+			}
+			
+			// Set the header
+			$response->setHeader('Content-Type', $type);
 		}
 
 		// Open a file handle and attach it to the response
-		$response->setStream(fopen($file, 'rb'));
+		$response->setStream(@fopen($file, 'rb'));
 	}
 	
 } // End MiniHTTPD_Handler_Static
