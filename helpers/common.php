@@ -5,7 +5,7 @@
  * @package    MiniHTTPD
  * @subpackage Launcher 
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 
@@ -50,9 +50,12 @@ function cprint_r($array)
 function listToArray($list)
 {
 	$arr = array();
-	$items = explode(',', $list);
-	foreach ($items as $key=>$value) {
-		$arr[$key] = trim($value);
+	if ($list != '') {
+		$items = explode(',', $list);
+		foreach ($items as $key=>$value) {
+			$value = trim($value);
+			if ($value != '') {$arr[] = $value;}
+		}
 	}
 	return $arr;
 }
