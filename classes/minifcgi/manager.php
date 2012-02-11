@@ -364,7 +364,7 @@ class MiniFCGI_Manager
 				
 		// Get the PID value from the response header
 		if (MFCGI::$debug) {cecho("Getting PID ... ");}
-		if ($fcgi->sendRequest() && $fcgi->readResponse()
+		if ($fcgi->sendRequest() && $fcgi->readResponse(true)
 			&& $fcgi->getResponse()->hasHeader('X-PID')
 			) {
 			$pid = $fcgi->getResponse()->getHeader('X-PID');

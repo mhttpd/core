@@ -1,16 +1,17 @@
 <?php
 /**
- * The MiniFCI client class.
+ * The MiniFCGI client class.
  * 
  * This class is used to communicate with a running FastCGI process on behalf of
  * a server client. It handles the connections, parses and sends the FCGI request,
- * and applies the FCGI protocol through the record objects that it creates. The
- * responses are passed back to the server client typically via a bound object.
+ * processes responses and applies the FCGI protocol through the record objects that
+ * it creates. The responses are passed back to the server client typically via
+ * a bound object.
  *
  * @package    MiniHTTPD
  * @subpackage MiniFCGI 
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniFCGI_Client
@@ -56,6 +57,24 @@ class MiniFCGI_Client
 	 * @var bool
 	 */
 	protected $chunking = false;
+
+	/**
+	 * Is the current response in blocking mode?
+	 * @var bool
+	 */
+	protected $blocking = true;
+	
+	/**
+	 * Has the current request been completed?
+	 * @var bool
+	 */
+	protected $ended = false;
+
+	/**
+	 * A count of the output buffer flushes when not in chunking mode.
+	 * @var integer
+	 */	
+	protected $flushes = 0;
 	
 	/**
 	 * Creates a new FCGI client, by default bound to a server client.
@@ -238,22 +257,36 @@ class MiniFCGI_Client
 	/**
 	 * Parses the received FCGI response records and builds the response object.
 	 *
+	 * The response can be set to a (pseudo) non-blocking mode: once all headers 
+	 * have been received, the method will return after each new record and will need
+	 * to be called repeatedly to get the full response. This is handy for managing
+	 * any long-running scripts, since we can return to the main server loop while
+	 * waiting for data to become available on the socket - but note that use of a
+	 * true non-blocking socket is not very practical here, so there are limitations.
+	 *
+	 * Chunked responses are automatically non-blocking so that each chunk can be sent
+	 * to the client immediately via the main server loop.
+	 *
 	 * @uses MiniFCGI_Record::factory()
 	 * @uses MiniHTTPD_Server::factory()
 	 *
+	 * @param   bool  should the request block until the whole response is received?
 	 * @return  bool  false if the response couldn't be processed
 	 */
-	public function readResponse()
+	public function readResponse($blocking=false)
 	{
 		// Get the active request
 		$request = $this->request;
-		
+
 		// Check the socket connection
 		if (!is_resource($this->socket)) {
 			trigger_error("Lost socket connection for response ({$request['ID']})", E_USER_WARNING);
 			return false;
 		}
 		$socket = $this->socket;
+		
+		// Set the response blocking mode
+		$this->blocking = $this->chunking ? false : $blocking;
 		
 		// Initialize the record object
 		$record = MFCGI_Record::factory($socket, $request['ID']);
@@ -269,8 +302,8 @@ class MiniFCGI_Client
 		}
 		$tries = 5;
 		
-		// Fetch and process the response
-		while (!@feof($socket) && $tries > 0) {
+		// Fetch and process the response records
+		while (!@feof($socket) && $tries > 0 && !$this->ended ) {
 
 			if ($this->debug) {cecho("--> Reading FCGI response ({$request['ID']})\n");}
 			
@@ -280,61 +313,101 @@ class MiniFCGI_Client
 				usleep(500);
 				continue;
 			}
-						
-			// Handle the content
+
+			// Handle any content
 			if ($record->isType(MFCGI::STDOUT) || $record->isType(MFCGI::STDERR)) {
 				if (!$response->hasAllHeaders()) {
-					$response->parse($record->getContent(), false);					
+					$response->parse($record->getContent(), false);
 				} else {
 					$response->append($record->getContent());
 				}
+				$this->flushes++;
+
+			// Request is ended
+			} elseif ($record->isType(MFCGI::END_REQUEST)) {
+				if ($this->debug) {cecho("--> FCGI request is ended ({$request['ID']})\n");}
+				$this->ended = true;
 			}
-		
+
 			// Any errors to log?
 			if ($record->isType(MFCGI::STDERR)) {
 				trigger_error('FCGI server returned error', E_USER_WARNING);
+				$this->blocking = true;
 			}
 			
-			// Check chunked transfer-encoding				
 			if ($response->hasAllHeaders()) {
 				
-				// Skip if response is already chunked or is an error message
-				if (!$this->chunking && ($response->isChunked() || $response->hasErrorCode())) {
+				// Get the whole of any error message before returning
+				if ($response->hasErrorCode()) {
+					$this->blocking = true;
 					continue;
-				
-				// Use chunking mode if response exceeds buffer size
-				} elseif ($response->getContentLength() >= (MFCGI::MAX_LENGTH - 8)) {
-					$this->chunking = true;
-					break;
 				}
+				
+				// Check if response should be chunked
+				if (!$this->chunking) {
+				
+					// Skip chunking mode if response is already chunked
+					if ($response->isChunked()) {
+						$this->blocking = false;
+					
+					// Start chunking mode if response exceeds buffer size, or the output
+					// buffer has been flushed more than once (including at script end)
+					} elseif (($response->getContentLength() >= (MFCGI::MAX_LENGTH - 8))
+						|| ($this->flushes > 1)
+						) {
+						$this->chunking = true;
+						$this->blocking = false;
+					}
+				}
+				
+				// Don't fetch any more records if not blocking
+				if (!$this->blocking) break;				
 			}
 		}
 		
-		if ($this->debug && $this->chunking) {cecho("--> Using chunked encoding ({$request['ID']})\n");}
+		// Output any extra debug info
+		if ($this->debug) {
+			if ($this->chunking) {
+				cecho("--> Using chunked encoding ({$request['ID']})\n");
+			} elseif ($response->isChunked()) {
+				cecho("--> FCGI response is chunked ({$request['ID']})\n");
+			}
+			if (!$this->blocking) {
+				cecho("--> In non-blocking mode ({$request['ID']})\n");
+			}
+		}
 		
-		if (@feof($socket)) {
+		// Has the request ended?
+		if (@feof($socket) || $this->ended) {
 		
+			// Make sure we've ended properly
+			$this->ended = true;
+			
 			// Close the socket gracefully
 			if ($this->debug) {
 				$sname = stream_socket_get_name($socket, false);
-				$sname = stream_socket_get_name($this->socket, false);
-				$pinfo = $this->ID == 0 ? $this->process : $this->process.','.MFCGI::getPID($this->process);
+				$pinfo = $this->ID == MFCGI::NULL_REQUEST_ID ? $this->process : $this->process.','.MFCGI::getPID($this->process);
 				cecho("Closing FCGI connection (c:{$this->ID}, p:{$pinfo}) ({$sname})\n");
 			}
 			
 			// Update the FCGI process info
 			MFCGI::removeClient($this->process);
 			
-			// Close the connection
+			// Close the client connection
 			MHTTPD::closeSocket($socket);
+			$this->socket = null;
 		}
-		
+
 		// Any problems? Check the End Request codes
-		if (!$this->chunking && $request['ID'] != 0 && !$response->hasBody() 
-			&& $record->isType(MFCGI::END_REQUEST)
+		if ($this->ended && $request['method'] != 'HEAD'
+			&& !$this->chunking && !$response->isChunked()
+			&& !$response->hasHeader('X-SendFile')
+			&& !$response->hasBody()
 			) {
-			trigger_error('FCGI returned no content, request is ended (codes: '.$record->getEndCodes().')', E_USER_NOTICE);
-			if ($response->hasErrorCode()) {
+			if ($this->debug) {
+				trigger_error('FCGI returned no content, request is ended (codes: '.$record->getEndCodes().')', E_USER_NOTICE);
+			}
+			if ($this->debug && $response->hasErrorCode()) {
 				$response->append(print_r($response, true));
 			} else {
 				$response->append('Nothing to see here ...');
@@ -428,6 +501,26 @@ class MiniFCGI_Client
 	public function isChunking()
 	{
 		return $this->chunking;
+	}
+
+	/**
+	 * Determines whether the current response is in blocking mode.
+	 
+	 * @return  bool  true if blocking
+	 */
+	public function isBlocking()
+	{
+		return $this->blocking;
+	}
+	
+	/**
+	 * Determines whether the current request has completed.
+	 
+	 * @return  bool  true if ended
+	 */
+	public function isEnded()
+	{
+		return $this->ended;
 	}
 	
 	/**

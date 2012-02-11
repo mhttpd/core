@@ -51,22 +51,21 @@ class MiniHTTPD_Handler_Dynamic extends MHTTPD_Handler
 	}
 
 	/**
-	 * Creates an FCGI request for any dynamic content and sends it to any
-	 * available FastCGI process via a new MiniFCGI client object.
+	 * Creates an FCGI request for any dynamic content via a new MiniFCGI client
+	 * object and attaches it to the current server client.
 	 *
 	 * @uses MiniFCGI_Client::addRequest()
-	 * @uses MiniFCGI_Client::sendRequest()
 	 *
-	 * @return  bool  false if the request could not be sent
+	 * @return  bool  false if the request could not be started
 	 */
-	protected function sendFCGIRequest()
+	protected function startFCGIRequest()
 	{
 		// Create the FCGI client object
 		$fcgi = new MFCGI_Client($this->client->getID());
 		$fcgi->debug = $this->debug;
 
 		// Start the FCGI request
-		if (!$fcgi->addRequest($this->request) || !$fcgi->sendRequest()) {
+		if (!$fcgi->addRequest($this->request)) {
 			$this->client->sendError(408, 'The FCGI process could not be reached at this time.');
 			return false;
 		}
