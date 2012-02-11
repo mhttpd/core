@@ -9,7 +9,7 @@
  *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Logger
@@ -116,7 +116,7 @@ class MiniHTTPD_Logger
 	public function write()
 	{
 		// Get the formatted log line
-		$line = $this->getFormatted()."\n";
+		$line = $this->getFormatted().PHP_EOL;
 		cecho($line);
 		
 		if (MHTTPD_Logger::$config['enabled']) {
@@ -152,8 +152,8 @@ class MiniHTTPD_Logger
 				'user' => '-',
 				'date'=> date('d/M/Y:H:i:s O', time()),
 				'request' => $request->getRequestLine(),
-				'code' => '',
-				'bytes' => '',
+				'code' => '?',
+				'bytes' => '?',
 				'referer' => $request->getReferer(),
 				'useragent' => $request->getUserAgent(),
 			);
