@@ -6,7 +6,7 @@
  * @package    MiniHTTPD
  * @subpackage Handlers
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Handlers_Queue implements SeekableIterator
@@ -23,11 +23,7 @@ class MiniHTTPD_Handlers_Queue implements SeekableIterator
   
 	public function init()
 	{
-		$this->queue = array();
-		foreach ($this->handlers as $key=>$item)
-		{	
-			$this->queue[] = $key;
-		}
+		$this->queue = array_keys($this->handlers);
 		$this->rewind();
 		return $this;
 	}
