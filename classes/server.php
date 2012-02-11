@@ -59,6 +59,12 @@ class MiniHTTPD_Server
 	 * @var array
 	 */
 	protected static $info;
+
+	/**
+	 * The default charset string.
+	 * @var string
+	 */
+	protected static $charset;
 	
 	/**
 	 * Is the server running in its main loop?
@@ -556,6 +562,22 @@ class MiniHTTPD_Server
 	public static function getMimeTypes()
 	{
 		return MHTTPD::$config['Mimes'];
+	}
+	/**
+	 * Returns the default formatted charset string.
+	 *
+	 * @return  string  the charset string
+	 */				
+	public static function getDefaultCharset()
+	{
+		if (MHTTPD::$charset !== null) {
+			return MHTTPD::$charset;
+		}
+		$charset = ini_get('default_charset');
+		if ($charset != '') {$charset = "; charset={$charset}";}
+		MHTTPD::$charset = $charset;
+		
+		return $charset;
 	}
 	
 	// ------ Protected/Private methods --------------------------------------------
