@@ -235,7 +235,7 @@ class MiniFCGI_Manager
 		}
 		
 		// Try making a new connection
-		if (($sock = @fsockopen($address, $port, $errno, $errstr, 1)) === false ) {
+		if (($sock = @fsockopen($address, $port, $errno, $errstr, 5)) === false ) {
 			trigger_error("Cannot connect to FCGI process (p:{$ID}, c:{$clientID}): $errno - $errstr", E_USER_WARNING);
 			
 			// Does the process actually exist?
@@ -342,9 +342,7 @@ class MiniFCGI_Manager
 	public static function getPID($ID) 
 	{
 		// Check if the queried process already has a PID
-		if (isset(MFCGI::$pool[$ID]['pid']) 
-			&& is_numeric(MFCGI::$pool[$ID]['pid'])
-			) {
+		if (isset(MFCGI::$pool[$ID]['pid']) && is_numeric(MFCGI::$pool[$ID]['pid'])) {
 			return MFCGI::$pool[$ID]['pid'];
 		}
 	
@@ -355,13 +353,14 @@ class MiniFCGI_Manager
 		
 		// Create the PID request
 		$fcgi->setRequest(array(
-			'ID' => 0,
+			'ID' => MFCGI::NULL_REQUEST_ID,
 			'params'=> array(
 				'REQUEST_METHOD' => 'HEAD',
 				'SCRIPT_FILENAME' => MHTTPD::getServerDocroot().'scripts\getpid.php',
 			),
+			'method' => 'HEAD',
 		));
-				
+
 		// Get the PID value from the response header
 		if (MFCGI::$debug) {cecho("Getting PID ... ");}
 		if ($fcgi->sendRequest() && $fcgi->readResponse(true)
@@ -431,7 +430,7 @@ class MiniFCGI_Manager
 				cecho("\n------------------------------------\n");
 				cecho("Created FCGI process ($ID)\n\n");
 				cprint_r(MFCGI::$pool[$ID]);
-			}	
+			}
 			return true;
 		}
 		

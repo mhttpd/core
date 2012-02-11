@@ -109,17 +109,29 @@ class MiniHTTPD_Client
 	protected $fcgi;
 
 	/**
-	 * The maximum block size for outputting streamed responses.
+	 * The maximum bytes to buffer when reading request body content.
+	 * @var integer  32 KB
+	 */
+	protected $requestBufferSize = 32768;
+	
+	/**
+	 * The maximum bytes to buffer when sending streamed responses.
 	 * @var integer  16 KB
 	 */
-	protected $blockSize = 16384;
+	protected $streamBufferSize = 16384;
 
 	/**
 	 * Has the current client request been finished?
 	 * @var bool
 	 */
-	protected $finished = true;
+	protected $finished = false;
 
+	/**
+	 * Is the client currently posting data?
+	 * @var bool
+	 */
+	protected $posting = false;
+	
 	/**
 	 * Is the client currently streaming data?
 	 * @var bool
@@ -143,7 +155,7 @@ class MiniHTTPD_Client
 	 * @var integer
 	 */
 	protected $numRequests = 1;
-
+	
 	/**
 	 * Initalizes the client object.
 	 *
@@ -215,7 +227,7 @@ class MiniHTTPD_Client
 			$type = $handlers->key();
 			
 			// Skip handlers marked for single use
-			if ($this->reprocessing && $handler->useOnce() && !$this->reauthorize) {				
+			if ($this->reprocessing && $handler->useOnce() && !$this->reauthorize) {
 				$handlers->next();
 				continue;
 			}
@@ -272,7 +284,7 @@ class MiniHTTPD_Client
 
 	/**
 	 * Creates the active request object for the client, parses the input for headers
-	 * and retrieves any posted content body.
+	 * and starts the buffering of any posted content body.
 	 *
 	 * @return  bool  false if initialization failed
 	 */	
@@ -283,7 +295,7 @@ class MiniHTTPD_Client
 		$request->debug = $this->debug;
 		$this->reprocessing = false;
 		
-		// Add input size to server stats
+		// Add the input size to the server stats
 		MHTTPD::addStatCount('up', strlen($this->input));
 		
 		// Parse the request
@@ -300,33 +312,95 @@ class MiniHTTPD_Client
 		$request->setClientInfo($this->address, $this->port);
 		$request->setDocroot(MHTTPD::getDocroot());
 		$request->getFileInfo();
-		
-		// If this is a POST request, get the rest of the data
-		if ($request->isPost() && !$request->hasBody()) {
-			
-			// With Content-Length set
-			if ($clen = $request->getContentLength()) {
-				$request->setBody(@fread($this->socket, $clen));
-				MHTTPD::addStatCount('up', $clen);
-				
-			// With Transfer-Encoding: chunked
-			} elseif ($request->isChunked()) {
-				$body = '';
-				while (!@feof($this->socket)) {
-					$body .= @fread($this->socket, 4096);
-				}
-				$request->setBody(MHTTPD_Request::unChunk($body));
-				MHTTPD::addStatCount('up', strlen($body));
-			}
-		}
 
 		// Attach the request to the client
 		$this->request = $request;
+		
+		// If this is a POST request, set the client to posting mode
+		if ($request->isPost() && !$request->hasBody()) {
+			$this->posting = true;
+		}
+
 		return true;
+	}
+
+	/**
+	 * Buffers any request body content locally.
+	 *
+	 * This is especially handy for managing FCGI requests more efficiently, as the
+	 * buffer can be flushed directly to the FCGI process while the body is read in
+	 * by each main server loop, keeping memory usage low and concurrency high.
+	 *
+	 * Note: chunked requests still need to be buffered in whole before sending to 
+	 * the FCGI process, as the content length needs to be known in advance.
+	 *
+	 * @return  void
+	 */		
+	public function readRequestBody()
+	{		
+		$request = $this->request;
+		$buffer = '';
+		
+		// With Content-Length set
+		if (($clen = $request->getContentLength())) {
+
+			// Store the total bytes read locally
+			static $rlen = 0;
+			
+			// Buffer part of the body content
+			$len = min(($clen - $rlen), $this->requestBufferSize, 8192);
+			$buffer = @fread($this->socket, $len);
+			$len = strlen($buffer);
+			
+			// Update the byte counts
+			MHTTPD::addStatCount('up', $len);
+			$rlen += $len;
+			if ($this->debug) {
+				$bsize = strlen($this->request->getBody()) + $len;
+				cecho("({$len}/{$rlen}/{$clen}) [{$bsize}] ");
+			}
+			if ($rlen >= $clen) {
+				
+				// No more body content is left to buffer
+				if ($this->debug) {cecho("... done ");}
+				$this->posting = false;
+				$rlen = 0;
+			}
+			
+		// With Transfer-Encoding: chunked
+		} elseif ($request->isChunked()) {
+		
+			// The whole body content must first be buffered
+			while (!@feof($this->socket)) {
+				$buffer .= @fread($this->socket, $this->requestBufferSize);
+			}
+			
+			// Unchunk the body
+			MHTTPD::addStatCount('up', strlen($buffer));
+			$buffer = MHTTPD_Request::unChunk($buffer);
+			if ($this->debug) {cecho("... done ");}
+			
+			// End posting mode
+			$this->posting = false;
+		}
+		
+		if ($buffer == '') {
+			
+			// The client has disconnected
+			if ($this->debug) {cecho("... no data");}
+			$this->posting = false;
+			
+		} else {
+			
+			// Add the buffered data to the request
+			$request->append($buffer);
+		}
+		
+		if ($this->debug) {cecho("\n");}
 	}
 	
 	/**
-	 * Common initalization step for all response objects.
+	 * Common initialization step for all response objects.
 	 *
 	 * @param   integer  response code
 	 * @param   bool     should the connection be closed after the response is sent?
@@ -361,7 +435,7 @@ class MiniHTTPD_Client
 			$this->numRequests++;
 		}
 
-		// Set client to start state
+		// Set client to the starting state
 		$this->finished = false;
 		$this->sentHeaders = false;
 		
@@ -419,7 +493,7 @@ class MiniHTTPD_Client
 				if (!@feof($body)) {
 					
 					// Send streamed data in blocks of specified size
-					$data = @fread($body, $this->blockSize);
+					$data = @fread($body, $this->streamBufferSize);
 					$bytes = @fwrite($this->socket, $data);
 					$this->response->addBytesSent($bytes);
 					$sent[] = $bytes;
@@ -434,9 +508,6 @@ class MiniHTTPD_Client
 				$this->response->addBytesSent($bytes);
 				$sent[] = $bytes;
 				
-				// Flush the current body
-				$this->response->setBody('');
-
 			} elseif ($body != '') {
 				
 				// Otherwise send the whole body
@@ -445,10 +516,16 @@ class MiniHTTPD_Client
 				$this->response->addBytesSent($bytes);
 				$sent[] = $bytes;
 			}
+			
+			if ($this->response->isChunked()) {
+			
+				// Flush the current body
+				$this->response->setBody('');
+			}
 		}
 		if ($this->debug) {cecho('('.join(':', $sent).') ');}
 
-		if ($finish && !$this->streaming && !$this->chunking) {
+		if ($finish && !$this->streaming && !$this->response->isChunked()) {
 
 			// Finish the successful response now
 			$this->finish();
@@ -475,32 +552,37 @@ class MiniHTTPD_Client
 	{
 		if ($this->debug) {cecho("... finishing ");}
 
-		// Finalize & clean up
-		$this->finished = true;
-		if ($this->streaming) {			
-			
-			// Close open stream
-			@fclose($this->response->getStream());
-			$this->streaming = false;
+		// Finalize & clean up	
+		if ($this->hasResponse()) {
 		
-		} elseif ($this->chunking) {
+			if ($this->streaming) {
+				
+				// Close open stream
+				@fclose($this->response->getStream());
+				$this->streaming = false;
 			
-			// Add chunked encoding terminator
-			@fwrite($this->socket, "0\r\n\r\n");
-			$this->response->addBytesSent(5);
-			$this->chunking = false;
+			} elseif ($this->chunking) {
+				
+				// Add chunked encoding terminator
+				@fwrite($this->socket, "0\r\n\r\n");
+				$this->response->addBytesSent(5);
+				$this->chunking = false;
+			}
+			
+			// Update the logger
+			if ($this->logger) {$this->logger->addResponse($this->response);}
+
+			// Update the server stats
+			MHTTPD::addStatCount('down', $this->response->getBytesSent());
 		}
 		
-		// Update the logger
-		if ($this->logger) {$this->logger->addResponse($this->response);}
-
-		// Update the server stats
-		MHTTPD::addStatCount('down', $this->response->getBytesSent());
-		
 		// Reset the attached objects
-		$this->request = null;
-		$this->fcgi = null;
 		$this->response = null;
+		$this->request  = null;
+		$this->fcgi     = null;
+		
+		// Mark the request as finished
+		$this->finished = true;
 	}
 
 	/**
@@ -554,13 +636,23 @@ class MiniHTTPD_Client
 	}
 
 	/**
-	 * Determines whether the client is ready to receive a new request.
+	 * Determines whether the client is ready to process a new request.
 	 *
 	 * @return  bool
 	 */
 	public function isReady()
 	{
-		return ($this->finished || $this->needsAuthorization());
+		return (!$this->hasRequest() || $this->needsAuthorization()) && !$this->isPosting();
+	}
+
+	/**
+	 * Determines whether the client is in the process of posting data.
+	 *
+	 * @return  bool
+	 */
+	public function isPosting()
+	{
+		return $this->posting;
 	}
 	
 	/**
@@ -573,6 +665,16 @@ class MiniHTTPD_Client
 		return !empty($this->request);
 	}
 
+	/**
+	 * Determines whether the client has any request body content currently buffered.
+	 *
+	 * @return  bool
+	 */
+	public function hasRequestBody()
+	{
+		return (!empty($this->request) && $this->request->hasBody());
+	}
+	
 	/**
 	 * Determines whether the client has an active response.
 	 *
@@ -590,7 +692,42 @@ class MiniHTTPD_Client
 	 */
 	public function hasResponseContent()
 	{
-		return $this->response->getContentLength() > 0;
+		return ($this->hasResponse() && $this->response->getContentLength() > 0);
+	}
+
+	/**
+	 * Determines whether the client has sent all response headers.
+	 *
+	 * @return  bool
+	 */
+	public function hasSentHeaders()
+	{
+		return $this->sentHeaders;
+	}
+
+	/**
+	 * Determines whether the client response is chunked transfer-encoding.
+	 *
+	 * @return  bool
+	 */
+	public function hasChunkedResponse()
+	{
+		return ($this->hasResponse() && $this->response->isChunked());
+	}
+
+	/**
+	 * Determines whether the buffer for the request body has reached maximum size.
+	 *
+	 * @return  bool
+	 */	
+	public function hasFullRequestBuffer()
+	{
+		if ($this->hasRequestBody()) {
+			$blen = strlen($this->request->getBody());
+			$clen = $this->request->getContentLength();
+			return ($blen >= $this->requestBufferSize || ($clen && ($blen >= $clen)));
+		}
+		return false;
 	}
 	
 	/**
@@ -600,7 +737,7 @@ class MiniHTTPD_Client
 	 */
 	public function getSocket()
 	{
-		return isset($this->socket) ? $this->socket : false;
+		return isset($this->socket) && is_resource($this->socket) ? $this->socket : false;
 	}
 
 	/**
@@ -614,7 +751,7 @@ class MiniHTTPD_Client
 		if (!is_resource($sock)) {
 			return false;
 		}
-		$this->socket= $sock;
+		$this->socket = $sock;
 		return $this;
 	}
 
@@ -626,7 +763,7 @@ class MiniHTTPD_Client
 	 */
 	public function setTimeout($secs)
 	{
-		stream_set_timeout($this->socket, 10);
+		stream_set_timeout($this->socket, $secs);
 		return $this;
 	}
 
@@ -660,7 +797,7 @@ class MiniHTTPD_Client
 	 */	
 	public function hasOpenStream()
 	{
-		return $this->response->hasStream() && !@feof($this->response->getStream());
+		return $this->hasResponse() && $this->response->hasStream() && !@feof($this->response->getStream());
 	}
 
 	/**
@@ -754,7 +891,7 @@ class MiniHTTPD_Client
 	 * @param   MiniFCGI_Client   the FCGI client
 	 * @return  MiniHTTPD_Client  this instance
 	 */
-	public function addFCGIClient(MiniFCGI_Client $fcgi)
+	public function addFCGIClient(MFCGI_Client $fcgi)
 	{
 		$this->fcgi = $fcgi;
 		return $this;
@@ -777,7 +914,7 @@ class MiniHTTPD_Client
 	 */
 	public function getFCGIClientID()
 	{
-		if ($this->fcgi) {
+		if ($this->hasFCGI()) {
 			return $this->fcgi->getID();
 		}
 		return false;
@@ -800,7 +937,38 @@ class MiniHTTPD_Client
 	 */		
 	public function hasOpenFCGI()
 	{
-		return ($this->fcgi && $this->fcgi->hasOpenSocket());
+		return ($this->hasFCGI() && $this->fcgi->hasOpenSocket());
+	}
+
+	/**
+	 * Determines whether the FCGI process will block while waiting for the request to
+	 * be completed.
+	 *
+	 * @return  bool  true if FCGI will block
+	 */		
+	public function hasBlockingFCGI()
+	{
+		return ($this->hasFCGI() && $this->fcgi->isBlocking());
+	}
+
+	/**
+	 * Determines whether the FCGI request has been ended by the connected process.
+	 *
+	 * @return  bool  true if FCGI request is completed
+	 */		
+	public function hasEndedFCGI()
+	{
+		return ($this->hasFCGI() && $this->fcgi->isEnded());
+	}
+
+	/**
+	 * Determines whether the FCGI request has been sent to the connected process.
+	 *
+	 * @return  bool  true if FCGI request was sent
+	 */		
+	public function hasSentFCGI()
+	{
+		return ($this->hasFCGI() && $this->fcgi->hasSent());
 	}
 	
 	/**
@@ -810,12 +978,39 @@ class MiniHTTPD_Client
 	 */
 	public function getFCGIProcess()
 	{
-		if ($this->fcgi) {
+		if ($this->hasFCGI()) {
 			return $this->fcgi->getProcess();
 		}
 		return false;
 	}
 
+	/**
+	 * Sends the next stage of the FCGI request to the connected process.
+	 *
+	 * This method can be called repeatedly to allow buffering of the FCGI request,
+	 * which limits the chances of the main server loop being blocked by requests
+	 * with large bodies, especially file uploads.
+	 *
+	 * @return  bool  false if the request could not be sent
+	 */	
+	public function sendFCGIRequest()
+	{
+		if ($this->request->isPost()) {
+			
+			// Add any buffered body content to the FCGI request
+			$this->fcgi->addRequestContent($this->request);
+		}
+		
+		// Send the FCGI request
+		if (!$this->fcgi->sendRequest()) {
+			$this->response = null;
+			$this->sendError(408, 'The FCGI process could not be reached at this time.');
+			return false;
+		}
+
+		return true;
+	}
+	
 	/**
 	 * Receives the FCGI response and processes it for returning to the client.
 	 *
@@ -824,9 +1019,8 @@ class MiniHTTPD_Client
 	 * client. This involves merging any received headers with the server's default
 	 * headers, calculating the content length, etc. It's more efficient in this
 	 * case to use a single response object bound to both the server client and
-	 * the FCGI client objects. Currently the whole of the  response body needs to
-	 * be buffered to get its content length, so chunked transport-encoding will be
-	 * automatically applied if the body exceeds the FCGI buffer size.
+	 * the FCGI client objects. Chunked transport-encoding will be automatically
+	 * applied if the body exceeds the FCGI buffer size.
 	 *
 	 * @uses MiniFCGI_Client::readResponse()
 	 *
@@ -834,7 +1028,7 @@ class MiniHTTPD_Client
 	 */
 	public function readFCGIResponse()
 	{
-		if ($this->response == null || !$this->chunking) {
+		if ($this->response == null) {
 
 			// Create the client response
 			$this->startResponse();
@@ -846,8 +1040,13 @@ class MiniHTTPD_Client
 		// Get the response and process it
 		if ($this->fcgi->readResponse()) {
 
-			// Continue if already chunking
-			if ($this->chunking) {return true;}
+			// Continue in main loop if chunking, or a non-blocking request is not ended
+			if ($this->chunking || (
+					!$this->fcgi->isBlocking() && !$this->fcgi->isEnded() 
+					&& !$this->fcgi->isChunking() && !$this->response->isChunked()
+				)) {
+				return true;
+			}
 			
 			// Divert any error messages
 			if ($this->response->hasErrorCode()) {
@@ -864,7 +1063,7 @@ class MiniHTTPD_Client
 				$this->chunking = true;
 			
 			// Otherwise calculate the content length
-			} elseif ($this->response->hasBody() && !$this->response->isChunked()) {
+			} elseif (!$this->response->isChunked()) {
 				$this->response->setHeader('Content-Length', $this->response->getContentLength());
 			}
 			
@@ -877,7 +1076,7 @@ class MiniHTTPD_Client
 			return false;
 		}
 	}
-		
+	
 	//-------------	SERVER CLIENT RESPONSES ----------------------------------------
 
 	/**
@@ -898,13 +1097,13 @@ class MiniHTTPD_Client
 
 		// Load and process the error template
 		$content = file_get_contents(MHTTPD::getServerDocroot().'templates\errors.tpl');
-		$tags = array(':code:', ':response:', ':message:', ':signature:');
-		$values = array($code, MHTTPD_Message::httpCode($code, true), $message, MHTTPD::getSignature());
+		$tags    = array(':code:', ':response:', ':message:', ':signature:');
+		$values  = array($code, MHTTPD_Message::httpCode($code, true), $message, MHTTPD::getSignature());
 		$content = str_replace($tags, $values, $content);
 
 		// Build the error response
 		$this->startResponse($code, $close)
-			->setHeader('Content-Type', 'text/html')
+			->setHeader('Content-Type', 'text/html'.MHTTPD::getDefaultCharset())
 			->setHeader('Content-Length', strlen($content))
 			->append($content)
 		;
@@ -946,7 +1145,7 @@ class MiniHTTPD_Client
 		$message = 'Redirecting to <a href="'.$url.'">here</a>';
 		$this->startResponse($code)
 			->setHeader('Location', $url)
-			->setHeader('Content-Type', 'text/html')
+			->setHeader('Content-Type', 'text/html'.MHTTPD::getDefaultCharset())
 			->setHeader('Content-Length', strlen($message))
 			->append($message)
 		;

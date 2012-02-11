@@ -10,7 +10,7 @@
  *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Server
@@ -461,7 +461,7 @@ class MiniHTTPD_Server
 		$ret = '';
 		foreach (MHTTPD::$handlers as $type=>$handler) {
 			$ret .= str_pad(ucfirst($type.' '), 20, '.')
-				.sprintf(' I: %-4s M: %-4s S: %-4s E: %-4s', 
+				.sprintf(' I: %-8s M: %-8s S: %-8s E: %-8s', 
 					$handler->getCount('init'),
 					$handler->getCount('match'),
 					$handler->getCount('success'),
@@ -702,17 +702,18 @@ class MiniHTTPD_Server
 		$type = MHTTPD::$config['SSL']['enabled'] ? 'ssl' : 'tcp';
 		$addr = MHTTPD::$config['Server']['address'];
 		$port = MHTTPD::$config['Server']['port'];
-		$t = '';
+
 		if (!(MHTTPD::$listener = stream_socket_server("{$type}://{$addr}:{$port}", $errno, $errstr, 
 			STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $context))
 			) {
 			trigger_error("Could not create ".strtoupper($type)." server socket", E_USER_ERROR);
 		}
-		if ($type == 'ssl') {$t = ' (SSL)';}
+
 		if (MHTTPD::$debug) {
 			cecho("\n------------------------------------\n");
 			cecho("Created ".strtoupper($type)." listener: ".stream_socket_get_name(MHTTPD::$listener, false)."\n\n");
 		} else {
+			$t = ($type == 'ssl') ? ' (SSL)' : '';
 			cecho("Started MiniHTTPD server on {$addr}, port {$port}{$t} ...\n\n");
 		}
 	}
@@ -729,11 +730,11 @@ class MiniHTTPD_Server
 			
 			if ($client->isStreaming() && !$client->hasOpenStream()) {
 				
-				// The client has finished streaming a static file
+				// Finish streaming a static file
 				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... stream ended ");}
 				$client->finish();
 			
-			} elseif ($client->isChunking() && !$client->hasOpenFCGI()) {
+			} elseif ($client->hasChunkedResponse() && !$client->hasOpenFCGI()) {
 				
 				// Flush any remaining chunked output
 				if ($client->hasResponseContent())  {
@@ -744,16 +745,29 @@ class MiniHTTPD_Server
 				// Finish the chunked response
 				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... chunking ended ");}
 				$client->finish();
+
+			} elseif (!$client->hasChunkedResponse() && $client->hasOpenFCGI() 
+				&& !$client->hasBlockingFCGI() && !$client->hasEndedFCGI()
+				) {
+
+				// Wait for an FCGI request to be completed (non-blocking response, not chunked)
+				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... waiting for FCGI to complete\n");}
+				return;
 			
-			} else {
-			
-				// The client is sending the response
+			} elseif (!$client->hasSentHeaders() || $client->hasResponseContent() || $client->hasOpenStream()) {
+				
+				// Send part or all of the response, depending on the type
 				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... sending ");}
 				$client->sendResponse();
+
+			} else {
+				
+				// Nothing for the client to do here just now
+				if (MHTTPD::$debug) {cecho("Client ({$client->getID()}) ... doing nothing\n");}
 			}
 			
 			// Complete logging
-			if (!$client->isStreaming() && !$client->isChunking()) {
+			if (!$client->isStreaming() && !$client->hasChunkedResponse()) {
 				if (MHTTPD::$debug) {cecho("... done\n\n");}
 				$client->writeLog();
 			}
@@ -800,7 +814,7 @@ class MiniHTTPD_Server
 		// Finish up
 		if (!$client->isFinished()) {
 			$client->finish();
-			if (MHTTPD::$debug) {cecho("\n");}
+			if (MHTTPD::$debug) {cecho("\n\n");}
 			$client->writeLog();
 		}
 		if (MHTTPD::$debug) {cecho("\n");}
@@ -868,8 +882,6 @@ class MiniHTTPD_Server
 	 * open file streams. Each loop should ideally finish as quickly as possible to
 	 * enable best concurrency.
 	 *
-	 * @todo Add a proper system for timing out idle/slow client connections.
-	 *
 	 * @return  void
 	 */
 	protected static function main()
@@ -881,7 +893,7 @@ class MiniHTTPD_Server
 		MHTTPD::createListener($context);
 
 		// Initialize some handy vars
-		$timeout = ini_get("default_socket_timeout");
+		$timeout = ini_get('default_socket_timeout');
 		$maxClients = MHTTPD::$config['Server']['max_clients'];
 		
 		// Start the browser
@@ -912,16 +924,16 @@ class MiniHTTPD_Server
 			
 			// Add any aborted FCGI requests
 			foreach (MHTTPD::$aborted as $aID=>$ab) {
-				$read['aborted_'.$aID.'_'.$ab['client']] = $ab['socket'];
+				$read['aborted_'.$aID.'_'.$ab['client'].'_'.$ab['pid']] = $ab['socket'];
 			}
 
 			if (MHTTPD::$debug) {
 				cecho("FCGI scoreboard:\n"); cprint_r(MFCGI::getScoreboard(true)); cecho("\n");
 				cecho("Pre-select:\n"); cprint_r($read);
+				cecho("=== Waiting for connections ===\n\n");
 			}
 			
 			// Wait for any new activity
-			if (MHTTPD::$debug) {cecho("=== Waiting for connections ===\n\n");}
 			if (!($ready = @stream_select($read, $write=null, $error=null, null))) {
 				trigger_error("Could not select streams", E_USER_WARNING);
 			}
@@ -957,19 +969,19 @@ class MiniHTTPD_Server
 				}
 				
 				// Return to waiting if only the listener is active
-				if (--$ready <= 0) {
+				if ($ready == 1) {
 					if (MHTTPD::$debug) {cecho("No other connections to handle\n\n");}
 					continue;
 				}
 			}
 			
-			// Process the current client list
+			// Handle any incoming client data on selected sockets
 			foreach (MHTTPD::$clients as $i=>$client) {
 		 
 				if (MHTTPD::$debug) {cecho("Client ($i) ... ");}
 				$csock = $client->getSocket();
-				
-				// Handle any queued client requests
+
+				// Handle any new client requests
 				if ($client->isReady() && $csock && in_array($csock, $read)) {
 				
 					// Start reading the request
@@ -978,14 +990,14 @@ class MiniHTTPD_Server
 					$input = '';
 					
 					// Get the request header block only
-					while (	$buffer = @fgets($csock, 1024)) {
+					while ($buffer = @fgets($csock, 1024)) {
 						$input .= $buffer;
 						if ($buffer == '' || substr($input, -4) == "\r\n\r\n") {
 							break;
 						}
 					}
 					if ($input) {
-						
+					
 						// Store the headers and process the request
 						if (MHTTPD::$debug) {cecho("done\n");}
 						$client->setInput(trim($input));
@@ -993,26 +1005,27 @@ class MiniHTTPD_Server
 							MHTTPD::removeClient($client);
 						}
 					
-					} elseif ($input == '') {
+					} else {
 						
-						// No data, meaning client has disconnected
+						// No request data, client is disconnecting
 						if (MHTTPD::$debug) {cecho("disconnected\n");}
 						MHTTPD::removeClient($client);
 						continue;
-					
-					} elseif ($input === false) {
-
-						// Something went wrong ...
-						if (MHTTPD::$debug) {cecho("oops, input is false\n");}
-						MHTTPD::removeClient($client);
-						continue;
-						
-					}				
-					
+					}
+				
+				// Handle any request body data
+				} elseif ($client->isPosting() && $csock && in_array($csock, $read)) {
+					if (MHTTPD::$debug) {cecho("reading body ");}
+					$client->readRequestBody();
+				
+				// Handle any disconnects or malformed requests
+				} elseif ($csock && in_array($csock, $read)) {
+					if (MHTTPD::$debug) {cecho("aborted connection\n");}
+					MHTTPD::removeClient($client);
+					continue;
+				
 				// Handle any inactive client connections
 				} else {
-					
-					// TODO: add a timeout tracker, e.g. set/update timer, Send 408 and close, etc.
 					if (MHTTPD::$debug) {
 						cecho('inactive (');
 						cecho('req:'.$client->hasRequest());
@@ -1022,7 +1035,7 @@ class MiniHTTPD_Server
 					}
 				}
 				
-				// Handle any queued FCGI requests
+				// Handle any incoming FCGI responses
 				if ($clfsock =& $client->getFCGISocket() && in_array($clfsock, $read)) {
 					if (MHTTPD::$debug) {cecho("Client ($i) ... reading FCGI socket: {$clfsock}\n");}
 					if (!$client->readFCGIResponse()) {
@@ -1030,11 +1043,23 @@ class MiniHTTPD_Server
 					}
 				}
 			}
-						
-			// Handle any outgoing client responses in a new loop
+
+			// Handle any outgoing FCGI requests
+			foreach (MHTTPD::$clients as $i=>$client) {
+				if ($client->hasFCGI() && !$client->hasSentFCGI()
+					&& (!$client->isPosting() || $client->hasFullRequestBuffer())
+					) {
+					if (MHTTPD::$debug){cecho("Client ($i) ... sending FCGI request\n");}
+					if (!$client->sendFCGIRequest()) {
+						MHTTPD::removeClient($client); // abort any failed connections
+					}
+				}
+			}
+			
+			// Handle any outgoing client responses
 			foreach (MHTTPD::$clients as $i=>$client) {
 				if ($client->hasRequest()) {
-					if ($client->hasFCGI() && !$client->hasResponse()) {
+					if (!$client->isPosting() && $client->hasSentFCGI() && !$client->hasResponse()) {
 						if (MHTTPD::$debug){cecho("Client ($i) ... waiting for FCGI response\n");}
 						continue;
 					} elseif ($client->needsAuthorization()) {
@@ -1058,7 +1083,7 @@ class MiniHTTPD_Server
 				}
 			}
 			
-			// End of while loop
+			// End of main loop
 			if (MHTTPD::$debug) {cecho("\n");}
 		}
 		
