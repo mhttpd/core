@@ -10,7 +10,7 @@
  * @package    MiniHTTPD
  * @subpackage MiniFCGI
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniFCGI_Manager
@@ -400,7 +400,8 @@ class MiniFCGI_Manager
 		putenv('PHP_INI_SCAN_DIR='.EXEPATH.'bin\php\php.d');
 		
 		// Launch the new process in the background
-		$cmd = '"'.EXEPATH.'bin\php\php-fcgi.exe" -b '.$bind.' -c "'.EXEPATH.'bin\php\php-fcgi.ini"';
+		$fcgi_path = EXEPATH.'bin\php\\'.MFCGI::$config['name'];
+		$cmd = '"'.$fcgi_path.'.exe" -b '.$bind.' -c "'.$fcgi_path.'.ini"';
 		$wshShell = new COM('WScript.Shell');
 		$oExec = $wshShell->Run($cmd, 0, false);
 		sleep(1); // to be safe
@@ -409,6 +410,7 @@ class MiniFCGI_Manager
 
 			// Add the process info to the active pool list
 			list($address, $port) = explode(':', $bind);
+			MFCGI::$pool[$ID]['name'] = MFCGI::$config['name'];
 			MFCGI::$pool[$ID]['address'] = $address;
 			MFCGI::$pool[$ID]['port'] = $port;
 			MFCGI::$pool[$ID]['cwd'] = $cwd;
