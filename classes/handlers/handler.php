@@ -23,7 +23,7 @@
  * @package    MiniHTTPD
  * @subpackage Handlers
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 abstract class MiniHTTPD_Request_Handler
@@ -62,7 +62,7 @@ abstract class MiniHTTPD_Request_Handler
 	 * The value to return to the main server loop following execution.
 	 * @var bool
 	 */		
-	protected $returnValue = true;
+	protected $result = true;
 	
 	/**
 	 * Reference to the calling client object.
@@ -240,9 +240,9 @@ abstract class MiniHTTPD_Request_Handler
 	 *
 	 * @return  bool  the value to return to the main server loop
 	 */
-	public function getReturn()
+	public function getResult()
 	{
-		return $this->returnValue;
+		return $this->result;
 	}
 
 	/**
@@ -277,7 +277,7 @@ abstract class MiniHTTPD_Request_Handler
 	 * Handlers may have various responsibilities, but typically if the handler is 
 	 * final this method should start the appropriate response on the client, or 
 	 * send any error or redirect responses and report errors back to the main server
-	 * loop via $returnValue. If any details of the request are to be changed, the 
+	 * loop via $result. If any details of the request are to be changed, the 
 	 * request object should be updated accordingly.
 	 *
 	 * This method may also require that the handler queue should be re-processed

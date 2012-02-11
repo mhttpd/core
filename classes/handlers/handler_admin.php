@@ -30,7 +30,7 @@ class MiniHTTPD_Handler_Admin extends MHTTPD_Handler
 	
 	public function execute()
 	{		
-		$this->returnValue = call_user_func(array($this, 'sendServer'.$this->page));
+		$this->result = call_user_func(array($this, 'sendServer'.$this->page));
 		return true;
 	}
 	

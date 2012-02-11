@@ -19,7 +19,7 @@
  *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Client
@@ -241,7 +241,7 @@ class MiniHTTPD_Client
 				// Should handler processing stop here?
 				if ($handler->isFinal()) {
 					if ($this->debug) {cecho("Client ({$this->ID}) ... handler finished, is final: $type\n");}
-					return $handler->getReturn();
+					return $handler->getResult();
 				}
 
 			} elseif ($handler->skipped()) {
@@ -258,7 +258,7 @@ class MiniHTTPD_Client
 					$this->sendError(500, "Request handler ($type) failed, can't be skipped (Error: {$handler->getError()})");
 				}
 				$handler->addCount('error');
-				return $handler->getReturn();
+				return $handler->getResult();
 			}
 			
 			// Call the next handler
@@ -1009,7 +1009,7 @@ class MiniHTTPD_Client
 		// Send the static file using the current response object
 		$this->request->setFilepath($file)->refreshFileInfo();
 		if ($handler->matches() && $handler->execute(false, isset($opts['nocache']))) {
-			return $handler->getReturn();
+			return $handler->getResult();
 		}
 		
 		return false;

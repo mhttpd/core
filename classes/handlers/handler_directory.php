@@ -8,7 +8,7 @@
  * @package    MiniHTTPD
  * @subpackage Handlers
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Handler_Directory extends MHTTPD_Handler
@@ -52,7 +52,7 @@ class MiniHTTPD_Handler_Directory extends MHTTPD_Handler
 				// Redirect to add a trailing slash to the URL if needed
 				if ($this->request->needsTrailingSlash($url)) {
 					$this->client->sendRedirect(MHTTPD::getBaseUrl().$url.'/', 301);
-					$this->returnValue = true;
+					$this->result = true;
 					return true;
 				}
 
@@ -60,14 +60,14 @@ class MiniHTTPD_Handler_Directory extends MHTTPD_Handler
 				$this->request->setFilename(rtrim($this->request->getUrlPath(), '/').'/'.$index)
 					->setFilepath($file)
 					->refreshFileInfo();
-				$this->returnValue = $this->client->processRequest();
+				$this->result = $this->client->processRequest();
 				return true;
 			}
 		}
 		
 		// Nothing to serve
 		$this->client->sendError(404, 'The requested URL '.$this->request->getUrlPath().' was not found on this server.');
-		$this->returnValue = false;
+		$this->result = false;
 		return false;
 	}
 
