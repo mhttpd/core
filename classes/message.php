@@ -8,7 +8,7 @@
  *
  * @package    MiniHTTPD
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Message	
@@ -82,7 +82,7 @@ class MiniHTTPD_Message
 	 * List of response types that should not include a body
 	 * @var array
 	 */	
-	public static $withoutBody = array(100, 101, 204, 205, 304);
+	protected static $withoutBody = array(100, 101, 204, 205, 304);
 	
 	/**
 	 * Returns a formatted HTTP status line.
@@ -135,7 +135,7 @@ class MiniHTTPD_Message
 	protected $headers = array();
 	
 	/**
-	 * The parsed message body.
+	 * The parsed message body (may be partially buffered).
 	 * @var string
 	 */
 	protected $body = '';
@@ -306,8 +306,8 @@ class MiniHTTPD_Message
 		$headers = $this->status."\r\n";
 		foreach ($this->headers as $header=>$value) {
 			if (is_array($value)) foreach ($value as $val) {
-				if ($val != '') {$headers .= "{$header}: {$val}\r\n";}
-			} elseif ($value != '') {
+				if ($val !== '') {$headers .= "{$header}: {$val}\r\n";}
+			} elseif ($value !== '') {
 				$headers .= "{$header}: {$value}\r\n";
 			}
 		}
@@ -342,8 +342,9 @@ class MiniHTTPD_Message
 	 */
 	public function removeHeader($name, $nocase=false)
 	{
-		if (!$nocase && isset($this->headers[$name])) {
-			unset($this->headers[$name]);
+		// Case-sensitive search
+		if (!$nocase) {
+			if (isset($this->headers[$name])) {unset($this->headers[$name]);}
 			return $this;
 		}
 		
