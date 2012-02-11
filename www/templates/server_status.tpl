@@ -3,10 +3,10 @@
   <head>
     <title>MiniHTTPD Status</title>
     <style type="text/css">
-    body {font-family: Arial, Verdana, Sans; font-size: 0.9em; color:#222222}
-		hr {border: 0; height: 1px; background-color: #888888}
-    table {font-size: 0.9em;}
-		</style>
+      body {font-family: Arial, Verdana, Sans; font-size: 0.9em; color:#222222}
+		  hr {border: 0; height: 1px; background-color: #888888}
+      table {font-size: 0.9em;}
+    </style>
   </head>
   <body>
     <h1>MiniHTTPD Server Status</h1>
@@ -25,10 +25,13 @@
     <h3>FastCGI scoreboard</h3>
     <pre>:fcgiscoreboard:</pre>
     <br /><hr>
+    <h3>Aborted requests</h3>
+    <pre>:aborted:</pre>
+    <br /><hr>		
     <h3>Request handlers</h3>
     <pre>:requesthandlers:</pre>
 		<br /><hr>
     <address>:signature:</address>
-		<br /><br />
+    <br /><br />
   </body>
 </html>

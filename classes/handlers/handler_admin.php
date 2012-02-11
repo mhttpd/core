@@ -8,7 +8,7 @@
  * @package    MiniHTTPD
  * @subpackage Handlers
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniHTTPD_Handler_Admin extends MHTTPD_Handler
@@ -57,8 +57,8 @@ class MiniHTTPD_Handler_Admin extends MHTTPD_Handler
 
 		// Load and process the template
 		$content = file_get_contents(MHTTPD::getServerDocroot().'templates\server_status.tpl');
-		$tags = array(':version:', ':launched:', ':trafficup:', ':trafficdown:', ':clients:', ':fcgiscoreboard:',
-			':requesthandlers:', ':signature:'
+		$tags = array(':version:', ':launched:', ':trafficup:', ':trafficdown:', ':clients:',
+			':fcgiscoreboard:', ':aborted:', ':requesthandlers:', ':signature:'
 		);
 		$values = MHTTPD::getServerStatusInfo();
 		$content = str_replace($tags, $values, $content);
