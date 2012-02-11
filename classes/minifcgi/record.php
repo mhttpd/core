@@ -14,7 +14,7 @@
  * @package    MiniHTTPD
  * @subpackage MiniFCGI  
  * @author     MiniHTTPD Team
- * @copyright  (c) 2010 MiniHTTPD Team
+ * @copyright  (c) 2010-2012 MiniHTTPD Team
  * @license    BSD revised
  */
 class MiniFCGI_Record
@@ -171,9 +171,10 @@ class MiniFCGI_Record
 			
 		} elseif ($this->type == MFCGI::PARAMS || $this->type == MFCGI::STDIN) {
 			$this->length = strlen($this->content);
-					
+
 		} else {
-			return false;
+			$this->length = 0;
+			$this->content = '';
 		}
 		
 		// Calculate any padding
@@ -190,15 +191,17 @@ class MiniFCGI_Record
 			.chr(0) // reserved
 		;
 		
-		// Add the body with any padding
-		$record .= $this->content;
-		if ($this->padding) {
-			$record .= str_repeat(chr(0), $this->padding);
+		// Add the body content with any padding
+		if ($this->content != '') {
+			$record .= $this->content;
+			if ($this->padding) {
+				$record .= str_repeat(chr(0), $this->padding);
+			}
 		}
 		
 		// Send the record and clear any current content
 		if (($sent = @fwrite($this->socket, $record)) === false) {return false;}
-		if ($this->debug) {cecho("--> Sent record ({$this->requestID}:{$this->type}:{$sent})\n");}
+		if ($this->debug) {cecho("--> Sent record ({$this->requestID}:{$this->type}:{$sent}/{$this->length})\n");}
 		$this->content = '';
 		
 		return true;
@@ -215,17 +218,17 @@ class MiniFCGI_Record
 	 */
 	public function read()
 	{
-		// Get the record header (first 8 bytes)
-		if (!$data = fread($this->socket, 8)) {
-			$seek = strlen($data);
-			if ($seek > 0) {fseek($this->socket, 0 - $seek, SEEK_CUR);}
+		// Get the record header (first 8 bytes required)
+		$data = fread($this->socket, 8);
+		if (($len = strlen($data)) < 8) {
+			if ($len > 0) {fseek($this->socket, 0 - $len, SEEK_CUR);}
 			return false;
 		}
 		
 		// Parse the record header
 		$this->version = ord($data[0]);
-		$this->type = ord($data[1]);
-		$this->length = (ord($data[4]) << 8) + ord($data[5]);
+		$this->type    = ord($data[1]);
+		$this->length  = (ord($data[4]) << 8) + ord($data[5]);
 		$this->padding = ord($data[6]);
 		$this->content = '';
 		
@@ -233,7 +236,7 @@ class MiniFCGI_Record
 		
 		// Get the record content
 		while (($clen = strlen($this->content)) < $this->length) {
-			if(!($data = fread($this->socket, $this->length - $clen))) {
+			if(($data = fread($this->socket, $this->length - $clen)) === false) {
 				return false;
 			}
 			$this->content .= $data;
@@ -275,7 +278,7 @@ class MiniFCGI_Record
 		$length = strlen($stream);
 		$offset = 0;
 				
-		While ($length >= 0) {
+		while ($length >= 0) {
 
 			// Get a new chunk
 			$len = ($length + 8) > MFCGI::MAX_LENGTH ? (MFCGI::MAX_LENGTH - 8) : $length;
@@ -287,7 +290,7 @@ class MiniFCGI_Record
 			// Next chunk values
 			$length -= $len;
 			if ($length <= 0) {break;}
-			$offset += $len;				
+			$offset += $len;
 		}
 		
 		return true;
