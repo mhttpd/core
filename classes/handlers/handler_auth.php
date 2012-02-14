@@ -45,8 +45,11 @@ class MiniHTTPD_Handler_Auth extends MHTTPD_Handler
 		foreach ($authList as $uri=>$info) {
 			if (stripos($url, $uri) === 0) {
 				if ($this->debug) {cecho("Client ({$this->client->getID()}) ... auth request ($uri)\n");}
-				$this->auth = MHTTPD::getAuthInfo($uri);
-				return true;
+				if ($this->auth = MHTTPD::getAuthInfo($uri)) {
+					return true;
+				} elseif ($this->debug) {
+					cecho("Client ({$this->client->getID()}) ... invalid auth info, skipping\n");
+				}
 			}
 		}
 		

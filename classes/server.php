@@ -20,7 +20,7 @@ class MiniHTTPD_Server
 	/**
 	 * Current software version.
 	 */
-	const VERSION = '0.6';
+	const VERSION = '0.7';
 	
 	/**
 	 * Supported HTTP protocol version.
@@ -502,13 +502,14 @@ class MiniHTTPD_Server
 	 */	
 	public function getAuthInfo($uri)
 	{
-		if (isset(MHTTPD::$config['Auth'][$uri])) {
-			$arr = listToArray(MHTTPD::$config['Auth'][$uri]);
-			return array(
-				'realm' => $arr[0],
-				'user' => $arr[1],
-				'pass' => $arr[2],
-			);
+		if (isset(MHTTPD::$config['Auth'][$uri]) && MHTTPD::$config['Auth'][$uri] !== false) {
+			if (!is_array(MHTTPD::$config['Auth'][$uri])) {
+				MHTTPD::$config['Auth'][$uri] = array_combine(
+					array('realm', 'user', 'pass'),
+					listToArray(MHTTPD::$config['Auth'][$uri])
+				);
+			}
+			return MHTTPD::$config['Auth'][$uri];
 		}
 		return false;
 	}
