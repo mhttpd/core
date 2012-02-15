@@ -154,7 +154,7 @@ class MiniHTTPD_Message
 	 * a request or a response from an FCGI process, both in terms of how the info
 	 * is parsed and how it is then stored for later processing. 
 	 *
-	 * Multiple header values are supported as follows:
+	 * Multiple header values are supported as follows if $replace is FALSE:
 	 *
 	 * - If the header entry is an array, new values will be added to the array
 	 *   (usually for sending later as separate header lines)
@@ -163,9 +163,10 @@ class MiniHTTPD_Message
 	 *
 	 * @param   string  the message to be parsed
 	 * @param   bool    should the header names be lowercased?
+	 * @param   bool    allow multiple header values?
 	 * @return  bool    true on success
 	 */
-	public function parse($string, $lowercase=true)
+	public function parse($string, $lowercase=true, $replace=false)
 	{
 		if ($this->debug) {$this->input .= $string;}
 		
@@ -237,11 +238,11 @@ class MiniHTTPD_Message
 				} else {
 				
 					// Add or append new header values
-					if (isset($this->headers[$headername]) && $this->headers[$headername] != '' 
+					if (!$replace && isset($this->headers[$headername]) && $this->headers[$headername] != '' 
 						&& is_array($this->headers[$headername])
 						) {
 						$this->headers[$headername][] = $headervalue;
-					} elseif (isset($this->headers[$headername]) && $this->headers[$headername] != '') {
+					} elseif (!$replace && isset($this->headers[$headername]) && $this->headers[$headername] != '') {
 						$this->headers[$headername] .= ','.$headervalue;
 					} else {
 						$this->headers[$headername] = $headervalue;

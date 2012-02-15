@@ -385,7 +385,7 @@ class MiniFCGI_Client
 			// Handle any content
 			if ($record->isType(MFCGI::STDOUT) || $record->isType(MFCGI::STDERR)) {
 				if (!$response->hasAllHeaders()) {
-					$response->parse($record->getContent(), false);
+					$response->parse($record->getContent(), false, true);
 				} else {
 					$response->append($record->getContent());
 				}
