@@ -418,12 +418,13 @@ class MiniHTTPD_Client
 
 		// We only want a persistent connection if the client supports it
 		if (!$this->request->allowsPersistence()) {$close = true;}
+		
 		// Process the connection status
 		$maxRequests = MHTTPD::getMaxRequests();
 		if ($close || $this->numRequests == $maxRequests) {
 
 			// Close the connection now
-			$this->response->setHeader('Connection', 'Close');
+			$this->response->setHeader('Connection', 'close');
 
 		} else {
 
@@ -1050,8 +1051,10 @@ class MiniHTTPD_Client
 				return true;
 			}
 			
-			// Divert any error messages
-			if ($this->response->hasErrorCode()) {
+			// Divert any error messages that are not custom error pages
+			if ($this->response->hasErrorCode()
+				&& (stripos($this->response->getBody(), '<html') === false)
+				) {
 				$this->sendError($this->response->getStatusCode(), '(FastCGI) '.$this->response->getBody());
 				return false;
 				

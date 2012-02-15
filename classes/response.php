@@ -361,6 +361,11 @@ class MiniHTTPD_Response extends MHTTPD_Message
 			$this->body = '';
 		}
 		
+		// Check error responses that should close connections
+		if ($this->code > 401) {
+			$this->setHeader('Connection', 'close');
+		}
+		
 		return $this;
 	}
 	
