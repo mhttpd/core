@@ -416,6 +416,8 @@ class MiniHTTPD_Client
 			->setStatusCode($code)
 		;
 
+		// We only want a persistent connection if the client supports it
+		if (!$this->request->allowsPersistence()) {$close = true;}
 		// Process the connection status
 		$maxRequests = MHTTPD::getMaxRequests();
 		if ($close || $this->numRequests == $maxRequests) {

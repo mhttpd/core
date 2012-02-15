@@ -388,6 +388,18 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	{
 		return !empty($this->info['method']) && $this->info['method'] == 'GET';
 	}
+
+	/**
+	 * Determines whether the client request supports persistent connections.
+	 *
+	 * @return  bool
+	 */
+	public function allowsPersistence()
+	{
+		return ($this->hasHeader('connection') 
+			&& stripos($this->getHeader('connection'), 'keep-alive') !== false
+		);
+	}
 	
 	/**
 	 * Returns the request method.
