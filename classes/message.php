@@ -95,6 +95,12 @@ class MiniHTTPD_Message
 	 * @var integer
 	 */	
 	protected static $maxHeaderValueSize = 8190;
+
+	/**
+	 * Maximum allowed size of the header block
+	 * @var integer
+	 */	
+	protected static $maxHeaderBlockSize = NULL;
 	
 	/**
 	 * List of response types that should not include a body
@@ -387,11 +393,15 @@ class MiniHTTPD_Message
 	 */	
 	public function getMaxHeaderBlockSize()
 	{
-		return (
-			  (MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderNameSize)
-			+ (MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderValueSize) 
-			+ 1024
-		);
+		if (empty(MHTTPD_Message::$maxHeaderBlockSize)) {
+			MHTTPD_Message::$maxHeaderBlockSize = (
+					(MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderNameSize)
+				+ (MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderValueSize) 
+				+ 1024 // to be safe
+			);
+		}
+		
+		return MHTTPD_Message::$maxHeaderBlockSize;
 	}
 	
 	/**
