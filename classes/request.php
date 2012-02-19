@@ -143,7 +143,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 * Returns an array of information about the requested file.
 	 *
 	 * By default this method uses the result of the last call, so if the request
-	 * details are changed it should be re-called with $refresh set too true.
+	 * details are changed it should be re-called with $refresh set to true.
 	 *
 	 * @param   string  the docroot in which to search for the requested file
 	 * @param   bool    should the stored values be refreshed?

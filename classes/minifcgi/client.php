@@ -118,7 +118,7 @@ class MiniFCGI_Client
 		if ($rStatus) {
 			$p['REDIRECT_STATUS'] = $rStatus;
 		}
-		foreach ($headers as $header=>$value){
+		foreach ($headers as $header=>$value) {
 			$header = str_replace('-', '_', strtoupper($header));
 			$p['HTTP_'.$header]   = $value;
 		}
