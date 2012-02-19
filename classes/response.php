@@ -218,6 +218,16 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	 */
 	public function setHeader($name, $value)
 	{
+		// Verify the header values
+		$name  = substr($name, 0, min(strlen($name), MHTTPD_Message::$maxHeaderNameSize));
+		$value = substr($value, 0, min(strlen($value), MHTTPD_Message::$maxHeaderValueSize));
+		
+		// Don't exceed the max header count
+		if ($this->hasMaxHeaders() && !isset($this->headers[$name])) {
+			return $this;
+		}
+		
+		// Add the header info
 		$this->headers[$name] = $value;
 		return $this;
 	}

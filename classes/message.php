@@ -79,6 +79,24 @@ class MiniHTTPD_Message
 	);
 
 	/**
+	 * Maximum number of headers that can be stored
+	 * @var integer
+	 */	
+	protected static $maxHeaders = 100;
+
+	/**
+	 * Maximum allowed size of any header name
+	 * @var integer
+	 */	
+	protected static $maxHeaderNameSize = 256;
+	
+	/**
+	 * Maximum allowed size of any header value
+	 * @var integer
+	 */	
+	protected static $maxHeaderValueSize = 8190;
+	
+	/**
 	 * List of response types that should not include a body
 	 * @var array
 	 */	
@@ -209,18 +227,23 @@ class MiniHTTPD_Message
 			// Parse the info/status line
 			if ($h !== false && strpos($str, 'HTTP/') !== false) {
 				$h = true;
+				
+				// Verify max length
+				$str = trim($str);
+				$str = substr($str, 0, min(strlen($str), MHTTPD_Message::$maxHeaderValueSize));
+				
 				if ($this instanceof MHTTPD_Response) {
 					
 					// Response: process status
-					$this->status = trim($str);
+					$this->status = $str;
 					$this->parseHttpStatus();
 
 				} else {
 					
 					// Request: process info
-					$info = explode(' ', trim($str));
+					$info = explode(' ', $str);
 					$this->info = array(
-						'request' => trim($str),
+						'request' => $str,
 						'method' => $info[0],
 						'url' => $info[1],
 						'url_parsed' => parse_url(str_replace(array('../', '..\\'), '', $info[1])),
@@ -236,7 +259,11 @@ class MiniHTTPD_Message
 				$h = true;
 				list($headername, $headervalue) = explode(':', trim($str), 2);
 				if ($lowercase) {$headername = strtolower($headername);}
+
+				// Verify header lengths
 				$headervalue = ltrim($headervalue);
+				$headervalue = substr($headervalue, 0, min(strlen($headervalue), MHTTPD_Message::$maxHeaderValueSize));
+				$headername  = substr($headername, 0, min(strlen($headername), MHTTPD_Message::$maxHeaderNameSize));
 				
 				if ($headername == 'Status' && ($this instanceof MHTTPD_Response)) {
 					
@@ -256,12 +283,19 @@ class MiniHTTPD_Message
 				}
 			
 			// Parse any multi-line header continuation lines
-			} elseif ($h !== false && ($str[0] == ' ' || $str[0] == "\t") && isset($headername)) {
-				if (is_array($this->headers[$headername])) {
-					$last = count($this->headers[$headername]) -1;
-					$this->headers[$headername][$last] .= ' '.trim($str);
-				} else {
-					$this->headers[$headername] .= ' '.trim($str);
+			} elseif ($h !== false && ($str[0] == ' ' || $str[0] == "\t") 
+				&& isset($headername) && isset($this->headers[$headername])
+				) {
+				$hlen = $this->getHeaderSize($headername);
+				if ($hlen < MHTTPD_Message::$maxHeaderValueSize) {
+					$val = ' '.trim($str);
+					$val = substr($val, 0, min(strlen($val), MHTTPD_Message::$maxHeaderValueSize - $hlen));
+					if (is_array($this->headers[$headername])) {
+						$last = count($this->headers[$headername]) - 1;
+						$this->headers[$headername][$last] .= $val;
+					} else {
+						$this->headers[$headername] .= $val;
+					}
 				}
 			}
 			
@@ -292,15 +326,22 @@ class MiniHTTPD_Message
 	 */
 	public function addHeader($name, $value, $combine=true)
 	{
-		if ($combine && !(isset($this->headers[$name]) && is_array($this->headers[$name]))) {
+		// Verify the header name
+		$name = substr($name, 0, min(strlen($name), MHTTPD_Message::$maxHeaderNameSize));
+		
+		if ($combine && isset($this->headers[$name]) && !is_array($this->headers[$name])) {
 			
 			// Combine header values as a comma-separated list
-			if (empty($this->headers[$name])) {
-				$this->headers[$name] = $value;
-			} elseif (strpos($this->headers[$name], $value) === false
-					&& strpos('"'.$this->headers[$name].'"', $value) === false
+			if (strpos($this->headers[$name], $value) === false
+				&& strpos('"'.$this->headers[$name].'"', $value) === false
 				) {
-				$this->headers[$name] .= ', '.$value;
+				$hlen = $this->getHeaderSize($name);
+				if ($hlen < MHTTPD_Message::$maxHeaderValueSize) {
+					$value = ', '.$value;
+					if (($vlen = min(strlen($value), MHTTPD_Message::$maxHeaderValueSize - $hlen)) > 2) {
+						$this->headers[$name] .= substr($value, 0, $vlen);
+					}
+				}
 			}
 
 		} elseif (isset($this->headers[$name]) && $this->headers[$name] != '') {
@@ -315,17 +356,44 @@ class MiniHTTPD_Message
 			}
 			
 			// Only add the value if it doesn't already exist
-			if (!in_array($value, $this->headers[$name])) {
-				$this->headers[$name][] = $value;
+			if (!$this->hasMaxHeaders() && !in_array($value, $this->headers[$name])) {
+				$hlen = $this->getHeaderSize($name);
+				if ($hlen < MHTTPD_Message::$maxHeaderValueSize) {
+					$this->headers[$name][] = substr($value, 0, min(strlen($value), MHTTPD_Message::$maxHeaderValueSize - $hlen));
+				}
 			}
 		
-		} else {
+		} elseif (!$this->hasMaxHeaders()) {
 		
-			// Set single header value string
-			$this->headers[$name] = $value;
+			// Set the single header value string
+			$this->headers[$name] = substr($value, 0, min(strlen($value), MHTTPD_Message::$maxHeaderValueSize));
 		}
 
 		return $this;
+	}
+
+	/**
+	 * Determines whether the maximum number of allowed headers has been reached.
+	 *
+	 * @return  bool  true if maximum is reached
+	 */	
+	public function hasMaxHeaders()
+	{
+		return (count($this->headers) >= MHTTPD_Message::$maxHeaders);
+	}
+
+	/**
+	 * Returns the maximum header block size in bytes.
+	 *
+	 * @return  integer  maximum allowed bytes
+	 */	
+	public function getMaxHeaderBlockSize()
+	{
+		return (
+			  (MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderNameSize)
+			+ (MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderValueSize) 
+			+ 1024
+		);
 	}
 	
 	/**
@@ -368,6 +436,27 @@ class MiniHTTPD_Message
 		return '';
 	}
 
+	/**
+	 * Returns the size in bytes of a header value, whether stored as a string
+	 * or as an array of values.
+	 *
+	 * @param   string   the header name
+	 * @return  integer  size in bytes
+	 */	
+	public function getHeaderSize($name)
+	{
+		if (!isset($this->headers[$name])) {return false;}
+		$size = 0;
+		
+		if (is_array($this->headers[$name])) foreach($this->headers[$name] as $val) {
+			$size += strlen($val);
+		} else {
+			$size += strlen($this->headers[$name]);
+		}
+		
+		return $size;
+	}
+	
 	/**
 	 * Returns the list of stored headers as a single block.
 	 *

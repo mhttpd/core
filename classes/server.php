@@ -896,6 +896,7 @@ class MiniHTTPD_Server
 		// Initialize some handy vars
 		$timeout = ini_get('default_socket_timeout');
 		$maxClients = MHTTPD::$config['Server']['max_clients'];
+		$maxHeaderBlockSize = MHTTPD_Message::getMaxHeaderBlockSize();
 		
 		// Start the browser
 		MHTTPD::launchBrowser();
@@ -993,7 +994,9 @@ class MiniHTTPD_Server
 					// Get the request header block only
 					while ($buffer = @fgets($csock, 1024)) {
 						$input .= $buffer;
-						if ($buffer == '' || substr($input, -4) == "\r\n\r\n") {
+						if ($buffer == '' || substr($input, -4) == "\r\n\r\n"  
+							|| strlen($input) > $maxHeaderBlockSize
+							) {
 							break;
 						}
 					}

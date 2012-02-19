@@ -210,6 +210,14 @@ class MiniHTTPD_Client
 			$this->reprocessing = true;
 		}
 
+		// Check if the header block is a valid size
+		if (strlen($this->input) > MHTTPD_Message::getMaxHeaderBlockSize()) {
+			$this->sendError(413, 'The request header block is larger than: '
+				.MHTTPD_Message::getMaxHeaderBlockSize().' bytes'
+			);
+			return false;
+		}
+		
 		// Get a new queue of loaded request handlers
 		$handlers = MHTTPD::getHandlersQueue();
 
