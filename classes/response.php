@@ -235,56 +235,6 @@ class MiniHTTPD_Response extends MHTTPD_Message
 		}
 		return $this;
 	}
-
-	/**
-	 * Adds a new header value either by combining with existing values or adding
-	 * to an existing array. If the header doesn't exist, it will be created.
-	 *
-	 * Generally speaking, it's better to build multiple header values as a comma-
-	 * separated list, but in some circumstances sending multiple headers as
-	 * individual lines is needed, in which case an array of values should be built
-	 * here. Identical values will not be repeated, and values within quotation 
-	 * marks are regarded as different from those without.
-	 *
-	 * @param   string  header name
-	 * @param   string  header value
-	 * @param   bool    combine values in a comma-separated list?
-	 * @param   bool    force append the value to existing ones?
-	 * @return  MiniHTTPD_Response  this instance
-	 */
-	public function addHeader($name, $value, $combine=true, $append=false)
-	{
-		if ($combine && !(isset($this->headers[$name]) && is_array($this->headers[$name]))) {
-			
-			// Combine header values as a comma-separated list
-			if (empty($this->headers[$name])) {
-				$this->headers[$name] = $value;
-			} elseif ($append || (
-					strpos($this->headers[$name], $value) === false
-					&& strpos('"'.$this->headers[$name].'"', $value) === false
-				)) {
-				$this->headers[$name] .= ', '.$value;
-			}
-			
-		} else {
-			
-			// Create an array of multiple header values
-			if (empty($this->headers[$name])) {
-				$this->headers[$name] = array();
-			} elseif (!is_array($this->headers[$name])) {
-				$vals = explode(',', $this->headers[$name]);
-				$this->headers[$name] = array();
-				foreach ($vals as $val) {
-					$this->headers[$name][] = trim($val);
-				}
-			}
-			if ($append || !in_array($value, $this->headers[$name])) {
-				$this->headers[$name][] = $value;
-			}
-		}
-		
-		return $this;
-	}
 	
 	/**
 	 * Returns the response content length.

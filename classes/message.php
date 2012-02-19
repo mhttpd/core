@@ -83,6 +83,12 @@ class MiniHTTPD_Message
 	 * @var array
 	 */	
 	protected static $withoutBody = array(100, 101, 204, 205, 304);
+
+	/**
+	 * List of header types that are not allowed multiple entries
+	 * @var array
+	 */	
+	protected static $singleHeaders = array('Connection', 'Keep-Alive');
 	
 	/**
 	 * Returns a formatted HTTP status line.
@@ -154,22 +160,25 @@ class MiniHTTPD_Message
 	 * a request or a response from an FCGI process, both in terms of how the info
 	 * is parsed and how it is then stored for later processing. 
 	 *
-	 * Multiple header values are supported as follows if $replace is FALSE:
+	 * Multiple headers of the same type are handled as follows if $replace is FALSE:
 	 *
-	 * - If the header entry is an array, new values will be added to the array
-	 *   (usually for sending later as separate header lines)
-	 * - If the header entry is a string, new values will be appended to a
-	 *   comma-separated list.
+	 * - For responses: multiple values will be stored in an array for the header,
+	 *                  usually for sending to the client as multiple header lines
+	 * - For requests:  new values will be appended to a single, comma-separated
+	 *                  list for the header
+	 *
+	 * The $replace parameter and stored $singleHeaders list can be used to override
+	 * this default behaviour.
 	 *
 	 * @param   string  the message to be parsed
 	 * @param   bool    should the header names be lowercased?
-	 * @param   bool    allow multiple header values?
+	 * @param   bool    prevent multiple header entries?
 	 * @return  bool    true on success
 	 */
 	public function parse($string, $lowercase=true, $replace=false)
 	{
 		if ($this->debug) {$this->input .= $string;}
-		
+
 		// If headers are done, append $string to body
 		if ($this->hasHeaderBlock) {
 			$this->body .= $string;
@@ -235,26 +244,88 @@ class MiniHTTPD_Message
 					$this->status = MHTTPD::PROTOCOL.' '.$headervalue;
 					$this->parseHttpStatus();
 				
+				} elseif ($replace || in_array($headername, MHTTPD_Message::$singleHeaders)) {
+					
+					// Set the header value to the last received
+					$this->headers[$headername] = $headervalue;
+
 				} else {
-				
-					// Add or append new header values
-					if (!$replace && isset($this->headers[$headername]) && $this->headers[$headername] != '' 
-						&& is_array($this->headers[$headername])
-						) {
-						$this->headers[$headername][] = $headervalue;
-					} elseif (!$replace && isset($this->headers[$headername]) && $this->headers[$headername] != '') {
-						$this->headers[$headername] .= ','.$headervalue;
-					} else {
-						$this->headers[$headername] = $headervalue;
-					}
+
+					// Combine or append multiple header values
+					$this->addHeader($headername, $headervalue, ($this instanceof MHTTPD_Request));
+				}
+			
+			// Parse any multi-line header continuation lines
+			} elseif ($h !== false && ($str[0] == ' ' || $str[0] == "\t") && isset($headername)) {
+				if (is_array($this->headers[$headername])) {
+					$last = count($this->headers[$headername]) -1;
+					$this->headers[$headername][$last] .= ' '.trim($str);
+				} else {
+					$this->headers[$headername] .= ' '.trim($str);
 				}
 			}
-
+			
 			// Continue parsing
 			$str = strtok("\n");
 		}
 
 		return true;
+	}
+
+	/**
+	 * Adds a new header value either by combining with existing values or appending
+	 * to an array of mutiple header values. If the header doesn't exist, it will
+	 * be created with a single string value.
+	 *
+	 * Generally speaking, it's better to build multiple header values as a comma-
+	 * separated list, but in some circumstances creating multiple headers as
+	 * individual lines is needed, in which case an array of values can be built
+	 * by setting $combine to FALSE.
+	 *
+	 * Identical values will not be repeated, and values within quotation marks are
+	 * regarded as different from those without.
+	 *
+	 * @param   string  header name
+	 * @param   string  header value
+	 * @param   bool    combine values in a comma-separated list?
+	 * @return  MiniHTTPD_Message  this instance
+	 */
+	public function addHeader($name, $value, $combine=true)
+	{
+		if ($combine && !(isset($this->headers[$name]) && is_array($this->headers[$name]))) {
+			
+			// Combine header values as a comma-separated list
+			if (empty($this->headers[$name])) {
+				$this->headers[$name] = $value;
+			} elseif (strpos($this->headers[$name], $value) === false
+					&& strpos('"'.$this->headers[$name].'"', $value) === false
+				) {
+				$this->headers[$name] .= ', '.$value;
+			}
+
+		} elseif (isset($this->headers[$name]) && $this->headers[$name] != '') {
+			
+			// Create an array of multiple header values
+			if (!is_array($this->headers[$name])) {
+				$vals = explode(',', $this->headers[$name]);
+				$this->headers[$name] = array();
+				foreach ($vals as $val) {
+					$this->headers[$name][] = trim($val);
+				}
+			}
+			
+			// Only add the value if it doesn't already exist
+			if (!in_array($value, $this->headers[$name])) {
+				$this->headers[$name][] = $value;
+			}
+		
+		} else {
+		
+			// Set single header value string
+			$this->headers[$name] = $value;
+		}
+
+		return $this;
 	}
 	
 	/**
