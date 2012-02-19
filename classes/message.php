@@ -130,12 +130,10 @@ class MiniHTTPD_Message
 	{
 		if (!isset(MHTTPD_Message::$codes[$code])) {
 			return false;
-		} else {
-			$ret = '';
-			if (!$messageOnly) {$ret .= $code.' ';}
-			$ret .= MHTTPD_Message::$codes[$code];
-			return $ret;
 		}
+		$msg = MHTTPD_Message::$codes[$code];
+		
+		return ($messageOnly ? $msg : $code.' '.$msg);
 	}
 
 	// ------ Instance variables and methods ----------------------------------------
@@ -605,5 +603,5 @@ class MiniHTTPD_Message
 	{
 		return isset($this->info['username']) ? $this->info['username'] : false;
 	}	
-
+	
 } // End MiniHTTPD_Message
