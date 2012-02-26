@@ -358,6 +358,18 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	{
 		return isset($this->headers['transfer-encoding']) && $this->headers['transfer-encoding'] == 'chunked';
 	}
+
+	/**
+	 * Determines whether this request has an entity-body waiting to be parsed.
+	 *
+	 * @return  bool
+	 */
+	public function hasContent()
+	{
+		return (isset($this->headers['content-type'])
+			&& (isset($this->headers['content-length']) || isset($this->headers['transfer-encoding']))
+		);
+	}
 	
 	/**
 	 * Determines whether this is a POST request.

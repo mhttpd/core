@@ -324,8 +324,8 @@ class MiniHTTPD_Client
 		// Attach the request to the client
 		$this->request = $request;
 		
-		// If this is a POST request, set the client to posting mode
-		if ($request->isPost() && !$request->hasBody()) {
+		// Start buffering any request entity-body
+		if ($request->hasContent() && !$request->hasBody()) {
 			$this->posting = true;
 		}
 
@@ -1006,7 +1006,7 @@ class MiniHTTPD_Client
 	 */	
 	public function sendFCGIRequest()
 	{
-		if ($this->request->isPost()) {
+		if ($this->request->hasContent()) {
 			
 			// Add any buffered body content to the FCGI request
 			$this->fcgi->addRequestContent($this->request);

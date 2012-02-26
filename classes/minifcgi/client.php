@@ -156,8 +156,8 @@ class MiniFCGI_Client
 			'method' => $request->getMethod(),
 		);
 		
-		// Initialize any posted content
-		if ($request->isPost()) {
+		// Initialize any request content
+		if ($request->hasContent()) {
 			$this->request['content'] = '';
 			$this->request['clength'] = 0;
 		}
