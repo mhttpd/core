@@ -42,12 +42,20 @@ if (!defined('INIPATH') && isset($_ENV['MHTTPD_INIPATH'])) {
 // Are we running with a console?
 define('HAS_CONSOLE', (php_sapi_name() == 'cli'));
 
+// Find the server configuration file
+if (isset($_ENV['MHTTPD_INIFILE'])) {
+	$inifile = realpath($_ENV['MHTTPD_INIFILE']);
+} elseif (isset($_SERVER['MHTTPD_INIFILE'])) {
+	$inifile = realpath($_SERVER['MHTTPD_INIFILE']);
+} elseif ($inifile = glob(INIPATH.'/*.ini')) {
+	$inifile = realpath($inifile[0]);
+}
+
 // Parse the configuration file
-if ($inifile = glob(INIPATH.'/*.ini')) {$inifile = $inifile[0];}
 if ( !($config = @parse_ini_file($inifile, true))
 	&& !($config = @parse_ini_file('config\default.ini', true))
 	) {
-	trigger_error("Could not load configuration file\n", E_USER_ERROR);
+	trigger_error("Could not load the configuration file\n", E_USER_ERROR);
 }
 
 // Get the absolute path to the server's public docroot
