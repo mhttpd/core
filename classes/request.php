@@ -346,7 +346,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 */
 	public function isValid()
 	{
-		return !empty($this->info);
+		return (!empty($this->info) && isset($this->info['protocol']));
 	}
 
 	/**
