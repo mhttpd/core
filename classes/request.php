@@ -149,15 +149,13 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	 * @param   bool    should the stored values be refreshed?
 	 * @return  array   the pathinfo() output of the requested file
 	 */
-	public function getFileInfo($dcroot=null, $refresh=false)
+	public function getFileInfo($docroot=null, $refresh=false)
 	{
 		// Use the default, request or passed docroot?
-		if (!$dcroot && !$this->docroot) {		
+		if (!$docroot && !$this->docroot) {
 			$docroot = MHTTPD::getDocroot();
-		} elseif (!$dcroot) {
+		} elseif (!$docroot) {
 			$docroot = $this->docroot;
-		} else {
-			$docroot = $dcroot;
 		}
 		
 		// Initialize
