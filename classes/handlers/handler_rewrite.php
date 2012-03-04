@@ -31,13 +31,14 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 	protected $rules_default = array
 	(
 		'default' => array(
-			'match'    => '^(.*)$',					// matches every URL in whole
-			'replace'  => '/page.php/$1',		// appends whole URL to page.php
-			'isFile'   => false,						// ignores all existing files
-			'isDir'    => false,						// ignores all existing directories
-			'strict'   => true, 						// checks for filename extensions
-			'last'     => true,							// no further rules will be applied
-			'redirect' => false,						// won't send any redirect info
+			'match'    => '^(.*)$',         // matches every URL in whole
+			'exclude'  => NULL,             // won't exclude any matches
+			'replace'  => '/index.php/$1',  // appends whole URL to index.php
+			'isFile'   => false,            // ignores all existing files
+			'isDir'    => false,            // ignores all existing directories
+			'strict'   => true,             // checks for filename extensions
+			'last'     => true,             // no further rules will be applied
+			'redirect' => false,            // won't send any redirect info
 		),
 	);
 		
@@ -49,7 +50,11 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 		// Process each defined rule
 		foreach ($this->rules as $name=>$rule) {
 
-			if (!preg_match("|{$rule['match']}|", $url)) {continue;}
+			if (!preg_match("|{$rule['match']}|", $url)
+				|| (isset($rule['exclude']) && preg_match("|{$rule['exclude']}|", $url))
+				) {
+				continue;
+			}
 			$matched = false;
 			
 			// Test rules that shouldn't match files or directories
