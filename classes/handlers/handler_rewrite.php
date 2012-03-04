@@ -91,10 +91,18 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 			$rule = $this->rules[$name];
 			$url = preg_replace("|{$rule['match']}|", $rule['replace'], $url,	1);
 			$url = str_replace('//', '/', $url);
-			$redirect = $rule['redirect'] ? $rule['redirect'] : false;
+			$redirect = isset($rule['redirect']) && $rule['redirect'] ? $rule['redirect'] : false;
 
 			if ($this->debug) {cecho("Client ({$this->client->getID()}) ... new URL: $url\n");}
 		
+			// Execute any external redirect
+			if (is_numeric($redirect) && in_array((int) $redirect, array(301, 302, 303, 305, 307))) {
+				$this->client->sendRedirect(MHTTPD::getBaseUrl().$url, $redirect);
+				$this->isFinal = true;
+				$this->result = true;
+				return true;
+			}
+
 			// Reprocess the URL info
 			$info['url'] = $url;
 			$info['url_parsed'] = parse_url($url);
@@ -118,6 +126,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 	{
 		parent::reset();
 		$this->matches = null;
+		$this->isFinal = false;
 	}
 
 	public function __construct()
