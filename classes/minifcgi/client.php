@@ -383,7 +383,7 @@ class MiniFCGI_Client
 			}
 
 			// Handle any content
-			if ($record->isType(MFCGI::STDOUT) || $record->isType(MFCGI::STDERR)) {
+			if ($record->isType(MFCGI::STDOUT)) {
 				if (!$response->hasAllHeaders()) {
 					$response->parse($record->getContent(), false);
 				} else {
@@ -391,23 +391,32 @@ class MiniFCGI_Client
 				}
 				$this->flushes++;
 
+			// Handle any unlogged errors
+			} elseif ($record->isType(MFCGI::STDERR)) {
+				if ($this->debug) {trigger_error('FCGI server returned error', E_USER_NOTICE);}
+				$error_msg = '[FCGI] '.trim($record->getContent());
+				if ($this->debug) {cecho($error_msg."\n\n");}
+
+				// Add the error to the server log
+				$error_logged = error_log($error_msg);
+				$this->blocking = true;
+
 			// Request is ended
 			} elseif ($record->isType(MFCGI::END_REQUEST)) {
 				if ($this->debug) {cecho("--> FCGI request is ended ({$request['ID']})\n");}
 				$this->ended = true;
 			}
 
-			// Any errors to log?
-			if ($record->isType(MFCGI::STDERR)) {
-				trigger_error('FCGI server returned error', E_USER_WARNING);
-				$this->blocking = true;
-			}
-			
 			if ($response->hasAllHeaders()) {
 				
 				// Get the whole of any error message before returning
 				if ($response->hasErrorCode()) {
 					$this->blocking = true;
+					if ($this->ended && $response->isCompressed()) {
+
+						// Messages must not be compressed
+						$response->decompress();
+					}
 					continue;
 				}
 				
@@ -466,20 +475,21 @@ class MiniFCGI_Client
 			$this->socket = null;
 		}
 
-		// Any problems? Check the End Request codes
-		if ($this->ended && $request['method'] != 'HEAD'
+		// Empty responses should return valid error messages
+		if (  $this->ended && $request['method'] != 'HEAD'
 			&& !$this->chunking && !$response->isChunked()
 			&& !$response->hasHeader('X-SendFile')
 			&& !$response->hasBody()
 			) {
 			if ($this->debug) {
-				trigger_error('FCGI returned no content, request is ended (codes: '.$record->getEndCodes().')', E_USER_NOTICE);
+				trigger_error('FCGI returned no content, request is ended (codes: '
+					.$record->getEndCodes().')', E_USER_NOTICE);
 			}
-			if ($this->debug && $response->hasErrorCode()) {
-				$response->append(print_r($response, true));
-			} else {
-				$response->append('Nothing to see here ...');
+			if (!$response->hasErrorCode()) {
+				$response->setStatusCode(500); // Internal Server Error
 			}
+			$response->append('No content was returned from the FCGI process'
+				.(isset($error_logged) ? ' (error logged).' : '.'));
 		}
 		
 		// Everything received OK
