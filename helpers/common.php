@@ -40,6 +40,17 @@ function cprint_r($array)
 }
 
 /**
+ * Returns a horizontal rule for CLI/debug output.
+ *
+ * @param   string  the character to use
+ * @return  string  the horizontal rule
+ */
+function chrule($char = '-')
+{
+	return str_repeat($char, 55);
+}
+
+/**
  * Converts comma-separated lists into arrays.
  *
  * This is used to parse the configuration file settings for local storage.

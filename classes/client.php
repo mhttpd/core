@@ -194,7 +194,9 @@ class MiniHTTPD_Client
 		
 			if ($this->debug) {
 				cecho("Client ({$this->ID}) ... processing request\n");
-				cecho("\n{$this->input}\n\n");
+				cecho(chrule()."\n");
+				cecho($this->input);
+				cecho("\n\n".chrule()."\n");
 			}
 
 			// Initialize the new request object
@@ -479,7 +481,11 @@ class MiniHTTPD_Client
 
 			// Get the response header block
 			$header = $this->response->getHeaderBlock();
-			if ($this->debug) {cecho("\n$header");}
+			if ($this->debug) {
+				cecho(chrule()."\n");
+				cecho($header);
+				cecho(chrule()."\n");
+			}
 
 			// Write the response header to the socket
 			$bytes = @fwrite($this->socket, $header);

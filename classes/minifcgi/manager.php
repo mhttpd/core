@@ -427,7 +427,7 @@ class MiniFCGI_Manager
 			
 			// Debug
 			if (MFCGI::$debug) {
-				cecho("\n------------------------------------\n");
+				cecho(chrule()."\n");
 				cecho("Created FCGI process ($ID)\n\n");
 				cprint_r(MFCGI::$pool[$ID]);
 			}

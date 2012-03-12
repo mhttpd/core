@@ -152,7 +152,7 @@ class MiniHTTPD_Server
 		MFCGI::spawn(null, MHTTPD::$config);
 	
 		// Load the configured request handlers
-		if (MHTTPD::$debug) {cecho("------------------------------------\n");}
+		if (MHTTPD::$debug) {cecho(chrule()."\n");}
 		foreach (MHTTPD::$config['Handlers'] as $type=>$handler) {
 			if (class_exists($handler)) {
 				if (MHTTPD::$debug) {cecho("Handler loaded ... $type\n");}
@@ -711,7 +711,7 @@ class MiniHTTPD_Server
 		}
 
 		if (MHTTPD::$debug) {
-			cecho("\n------------------------------------\n");
+			cecho("\n".chrule()."\n");
 			cecho("Created ".strtoupper($type)." listener: ".stream_socket_get_name(MHTTPD::$listener, false)."\n\n");
 		} else {
 			$t = ($type == 'ssl') ? ' (SSL)' : '';
@@ -897,6 +897,9 @@ class MiniHTTPD_Server
 		$timeout = ini_get('default_socket_timeout');
 		$maxClients = MHTTPD::$config['Server']['max_clients'];
 		$maxHeaderBlockSize = MHTTPD_Message::getMaxHeaderBlockSize();
+		if (MHTTPD::$debug) {
+			$listener_name = stream_socket_get_name(MHTTPD::$listener, false);
+		}
 		
 		// Start the browser
 		MHTTPD::launchBrowser();
@@ -932,9 +935,9 @@ class MiniHTTPD_Server
 			if (MHTTPD::$debug) {
 				cecho("FCGI scoreboard:\n"); cprint_r(MFCGI::getScoreboard(true)); cecho("\n");
 				cecho("Pre-select:\n"); cprint_r($read);
-				cecho("=== Waiting for connections ===\n\n");
+				cecho(chrule()."\n>>>> Waiting for server activity ($listener_name)\n".chrule()."\n\n");
 			}
-			
+
 			// Wait for any new activity
 			if (!($ready = @stream_select($read, $write=null, $error=null, null))) {
 				trigger_error("Could not select streams", E_USER_WARNING);
