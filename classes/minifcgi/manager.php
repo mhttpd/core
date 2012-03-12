@@ -74,6 +74,12 @@ class MiniFCGI_Manager
 	 * @var bool
 	 */
 	public static $debug = false;
+
+	/**
+	 * The time in seconds after which a connection attempt will abort.
+	 * @var integer
+	 */
+	public static $timeout = 5;
 	
 	/**
 	 * The list of running processes along with information about them.
@@ -235,7 +241,7 @@ class MiniFCGI_Manager
 		}
 		
 		// Try making a new connection
-		if (($sock = @fsockopen($address, $port, $errno, $errstr, 5)) === false ) {
+		if (($sock = @fsockopen($address, $port, $errno, $errstr, MFCGI::$timeout)) === false ) {
 			trigger_error("Cannot connect to FCGI process (p:{$ID}, c:{$clientID}): $errno - $errstr", E_USER_WARNING);
 			
 			// Does the process actually exist?
