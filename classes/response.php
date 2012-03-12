@@ -356,6 +356,11 @@ class MiniHTTPD_Response extends MHTTPD_Message
 			$this->setHeader('Connection', 'close');
 		}
 		
+		// Check that Keep-Alive is valid for this connection
+		if ($this->getHeader('Connection') == 'close') {
+			$this->removeHeader('Keep-Alive', true);
+		}
+
 		return $this;
 	}
 	
