@@ -289,6 +289,36 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	}
 
 	/**
+	 * Determines whether the response is compressed.
+	 *
+	 * @return  bool
+	 */
+	public function isCompressed()
+	{
+		return preg_match('/(gzip|deflate)/i', $this->getHeader('Content-Encoding', true));
+	}
+
+	/**
+	 * Decompresses the response body by the given content-encoding methods.
+	 *
+	 * @return  void
+	 */
+	public function decompress()
+	{
+		if ($this->body == '') {return;}
+
+		$methods = explode(',', strtolower($this->getHeader('Content-Encoding', true)));
+
+		foreach ($methods as $method) {
+			if ($method == 'gzip') {
+				$this->body = gzinflate(substr($this->body, 10, -8));
+			} elseif ($method == 'deflate') {
+				$this->body = gzinflate($this->body);
+			}
+		}
+	}
+
+	/**
 	 * Sets the username used for access authorization.
 	 *
 	 * @param   string  the username
