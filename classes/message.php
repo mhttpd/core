@@ -142,6 +142,24 @@ class MiniHTTPD_Message
 		return ($messageOnly ? $msg : $code.' '.$msg);
 	}
 
+	/**
+	 * Returns the maximum header block size in bytes.
+	 *
+	 * @return  integer  maximum allowed bytes
+	 */
+	public static function getMaxHeaderBlockSize()
+	{
+		if (empty(MHTTPD_Message::$maxHeaderBlockSize)) {
+			MHTTPD_Message::$maxHeaderBlockSize = (
+					(MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderNameSize)
+				+ (MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderValueSize) 
+				+ 1024 // to be safe
+			);
+		}
+
+		return MHTTPD_Message::$maxHeaderBlockSize;
+	}
+
 	// ------ Instance variables and methods ----------------------------------------
 
 	/**
@@ -382,24 +400,6 @@ class MiniHTTPD_Message
 	public function hasMaxHeaders()
 	{
 		return (count($this->headers) >= MHTTPD_Message::$maxHeaders);
-	}
-
-	/**
-	 * Returns the maximum header block size in bytes.
-	 *
-	 * @return  integer  maximum allowed bytes
-	 */	
-	public function getMaxHeaderBlockSize()
-	{
-		if (empty(MHTTPD_Message::$maxHeaderBlockSize)) {
-			MHTTPD_Message::$maxHeaderBlockSize = (
-					(MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderNameSize)
-				+ (MHTTPD_Message::$maxHeaders * MHTTPD_Message::$maxHeaderValueSize) 
-				+ 1024 // to be safe
-			);
-		}
-		
-		return MHTTPD_Message::$maxHeaderBlockSize;
 	}
 	
 	/**

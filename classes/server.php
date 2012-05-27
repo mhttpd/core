@@ -489,7 +489,7 @@ class MiniHTTPD_Server
 	 *
 	 * @return  array|bool  access authorization list, or false if none exists
 	 */		
-	public function getAuthList()
+	public static function getAuthList()
 	{
 		return !empty(MHTTPD::$config['Auth']) ? MHTTPD::$config['Auth'] : false;
 	}
@@ -500,7 +500,7 @@ class MiniHTTPD_Server
 	 * @param   string      the requested URI
 	 * @return  array|bool  access authorization info, or false if none exists
 	 */	
-	public function getAuthInfo($uri)
+	public static function getAuthInfo($uri)
 	{
 		if (isset(MHTTPD::$config['Auth'][$uri]) && MHTTPD::$config['Auth'][$uri] !== false) {
 			if (!is_array(MHTTPD::$config['Auth'][$uri])) {
