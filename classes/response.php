@@ -126,9 +126,9 @@ class MiniHTTPD_Response extends MHTTPD_Message
 	 * @param   resource  source from which to stream the body
 	 * @return  MiniHTTPD_Response  this instance
 	 */
-	public function setStream(&$handle)
+	public function setStream($handle)
 	{
-		$this->stream =& $handle;
+		$this->stream = $handle;
 		return $this;
 	}
 

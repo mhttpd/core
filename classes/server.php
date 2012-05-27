@@ -1043,7 +1043,7 @@ class MiniHTTPD_Server
 				}
 				
 				// Handle any incoming FCGI responses
-				if ($clfsock =& $client->getFCGISocket() && in_array($clfsock, $read)) {
+				if (($clfsock = $client->getFCGISocket()) && in_array($clfsock, $read)) {
 					if (MHTTPD::$debug) {cecho("Client ($i) ... reading FCGI socket: {$clfsock}\n");}
 					if (!$client->readFCGIResponse()) {
 						MHTTPD::removeClient($client); // abort any hanging connections

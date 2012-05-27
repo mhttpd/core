@@ -571,7 +571,7 @@ class MiniFCGI_Client
 	 */
 	public function getSocket()
 	{
-		return is_resource($this->socket) ? $this->socket : false;
+		return $this->socket;
 	}
 
 	/**
