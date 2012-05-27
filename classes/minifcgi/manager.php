@@ -402,10 +402,10 @@ class MiniFCGI_Manager
 		// Set environment variables
 		putenv('PHP_FCGI_MAX_REQUESTS='.MFCGI::$config['max_requests']);
 		putenv('FCGI_WEB_SERVER_ADDRS='.MFCGI::$config['allow_from']);
-		putenv('PHP_INI_SCAN_DIR='.EXEPATH.'bin\php\php.d');
+		putenv('PHP_INI_SCAN_DIR='.MHTTPD::getExepath().'bin\php\php.d');
 		
 		// Launch the new process in the background
-		$fcgi_path = EXEPATH.'bin\php\\'.MFCGI::$config['name'];
+		$fcgi_path = MHTTPD::getExepath().'bin\php\\'.MFCGI::$config['name'];
 		$cmd = '"'.$fcgi_path.'.exe" -b '.$bind.' -c "'.$fcgi_path.'.ini"';
 		$wshShell = new COM('WScript.Shell');
 		$oExec = $wshShell->Run($cmd, 0, false);

@@ -151,7 +151,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 				&& (
 					($file = realpath($conf['rules_file']))
 					||
-					($file = realpath(INIPATH.$conf['rules_file']))
+					($file = realpath(MHTTPD::getInipath().$conf['rules_file']))
 				)
 				&& is_file($file)
 				) {

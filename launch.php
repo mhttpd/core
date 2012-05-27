@@ -22,21 +22,21 @@ $DS = DIRECTORY_SEPARATOR;
 $options = getopt('d', array('debug'));
 
 // Set the root path for the MiniHTTPD files
-if (!defined('EXEPATH') && isset($_ENV['MHTTPD_ROOT'])) {
-	define('EXEPATH', realpath($_ENV['MHTTPD_ROOT']).$DS);
-} elseif (!defined('EXEPATH') && isset($_SERVER['MHTTPD_ROOT'])) {
-	define('EXEPATH', realpath($_SERVER['MHTTPD_ROOT']).$DS);
-} elseif (!defined('EXEPATH')) {
-	define('EXEPATH', getcwd().$DS);
+if (isset($_ENV['MHTTPD_ROOT'])) {
+	$exepath = realpath($_ENV['MHTTPD_ROOT']).$DS;
+} elseif (isset($_SERVER['MHTTPD_ROOT'])) {
+	$exepath = realpath($_SERVER['MHTTPD_ROOT']).$DS;
+} else {
+	$exepath = getcwd().$DS;
 }
 
 // Set the initialization path
-if (!defined('INIPATH') && isset($_ENV['MHTTPD_INIPATH'])) {
-	define('INIPATH', realpath($_ENV['MHTTPD_INIPATH']).$DS);
-} elseif (!defined('INIPATH') && isset($_SERVER['MHTTPD_INIPATH'])) {	
-	define('INIPATH', realpath($_SERVER['MHTTPD_INIPATH']).$DS);
-} elseif (!defined('INIPATH')) {
-	define('INIPATH', EXEPATH);
+if (isset($_ENV['MHTTPD_INIPATH'])) {
+	$inipath = realpath($_ENV['MHTTPD_INIPATH']).$DS;
+} elseif (isset($_SERVER['MHTTPD_INIPATH'])) {
+	$inipath = realpath($_SERVER['MHTTPD_INIPATH']).$DS;
+} else {
+	$inipath = $exepath;
 }
 
 // Are we running with a console?
@@ -47,7 +47,7 @@ if (isset($_ENV['MHTTPD_INIFILE'])) {
 	$inifile = realpath($_ENV['MHTTPD_INIFILE']);
 } elseif (isset($_SERVER['MHTTPD_INIFILE'])) {
 	$inifile = realpath($_SERVER['MHTTPD_INIFILE']);
-} elseif ($inifile = glob(INIPATH.'/*.ini')) {
+} elseif ($inifile = glob($inipath.'/*.ini')) {
 	$inifile = realpath($inifile[0]);
 }
 
@@ -59,7 +59,7 @@ if ( !($config = @parse_ini_file($inifile, true))
 }
 
 // Get the absolute path to the server's public docroot
-if ( !($docroot = realpath(INIPATH.$config['Paths']['docroot']))
+if ( !($docroot = realpath($inipath.$config['Paths']['docroot']))
 	&& !($docroot = realpath($config['Paths']['docroot']))
 	) {
 	trigger_error('Could not find the docroot directory: '.$config['Paths']['docroot'].PHP_EOL, E_USER_ERROR);
@@ -67,7 +67,7 @@ if ( !($docroot = realpath(INIPATH.$config['Paths']['docroot']))
 $config['Paths']['docroot'] = $docroot.$DS;
 
 // Get the absolute path to the server's private docroot
-if ( !($server_docroot = realpath(INIPATH.$config['Paths']['server_docroot']))
+if ( !($server_docroot = realpath($inipath.$config['Paths']['server_docroot']))
 	&& !($server_docroot = realpath($config['Paths']['server_docroot']))
 	) {
 	trigger_error('Could not find the server docroot directory: '.$config['Paths']['server_docroot'].PHP_EOL, E_USER_ERROR);
@@ -75,7 +75,7 @@ if ( !($server_docroot = realpath(INIPATH.$config['Paths']['server_docroot']))
 $config['Paths']['server_docroot'] = $server_docroot.$DS;
 
 // Get the absolute path to the temp folder
-if ( !($temp = realpath(INIPATH.$config['Paths']['temp']))
+if ( !($temp = realpath($inipath.$config['Paths']['temp']))
 	&& !($temp = realpath($config['Paths']['temp']))
 	) {
 	trigger_error('Could not find the temp directory: '.$config['Paths']['temp'].PHP_EOL, E_USER_ERROR);
@@ -83,7 +83,7 @@ if ( !($temp = realpath(INIPATH.$config['Paths']['temp']))
 $config['Paths']['temp'] = $temp.$DS;
 
 // Get the absolute path to the logs folder
-if ( !($logs = realpath(INIPATH.$config['Paths']['logs']))
+if ( !($logs = realpath($inipath.$config['Paths']['logs']))
 	&& !($logs = realpath($config['Paths']['logs']))
 	) {
 	trigger_error('Could not find the logs directory: '.$config['Paths']['logs'].PHP_EOL, E_USER_ERROR);
@@ -97,7 +97,7 @@ ini_set('error_log', $logs.'\mhttpd_errors.log');
 set_include_path('.');
 
 // Add the local include paths
-$paths = array(EXEPATH.'lib', EXEPATH.'lib\minihttpd\config', EXEPATH.'lib\pear');
+$paths = array($exepath.'lib', $exepath.'lib\minihttpd\config', $exepath.'lib\pear');
 foreach ($paths as $path) {
 	if (strpos(get_include_path(), $path) === false) {
 		set_include_path(get_include_path().PATH_SEPARATOR.$path);
@@ -109,8 +109,12 @@ if (isset($options['d']) || isset($options['debug'])) {
 	$config['Debug']['enabled'] = '1';
 }
 
+// Update the config
+$config['Paths']['inipath'] = $inipath;
+$config['Paths']['exepath'] = $exepath;
+
 // Clean up the launch variables
-unset($DS, $docroot, $server_docroot, $temp, $logs, $paths, $path, $options);
+unset($DS, $docroot, $server_docroot, $temp, $logs, $paths, $path, $options, $inipath, $exepath);
 
 // Load the helper functions file
 require 'helpers\common.php';

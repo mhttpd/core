@@ -137,7 +137,7 @@ class MiniHTTPD_Server
 		MHTTPD::addConfig($config);
 
 		// Load the mime types info
-		$mimes = @parse_ini_file(EXEPATH.'lib\minihttpd\config\mimes.ini', true);
+		$mimes = @parse_ini_file(MHTTPD::getExepath().'lib\minihttpd\config\mimes.ini', true);
 		MHTTPD::$config['Mimes'] = array_map('listToArray', $mimes['Mimes']);
 		
 		// Set the initial server info values
@@ -209,6 +209,26 @@ class MiniHTTPD_Server
 	}
 
 	/**
+	 * Returns the configured server initialization path.
+	 *
+	 * @return  string  an absolute path
+	 */
+	public static function getInipath()
+	{
+		return MHTTPD::$config['Paths']['inipath'];
+	}
+
+	/**
+	 * Returns the configured server root path.
+	 *
+	 * @return  string  an absolute path
+	 */
+	public static function getExepath()
+	{
+		return MHTTPD::$config['Paths']['exepath'];
+	}
+	
+	/**
 	 * Returns the configured public docroot path.
 	 *
 	 * @return  string  an absolute path
@@ -243,7 +263,7 @@ class MiniHTTPD_Server
 		$paths = listToArray(MHTTPD::$config['Paths']['send_file']);
 		$real_paths = array();
 		foreach ($paths as $path) {
-			if (($rpath = realpath(INIPATH.$path)) || ($rpath = realpath($path))) {
+			if (($rpath = realpath(MHTTPD::getInipath().$path)) || ($rpath = realpath($path))) {
 				$real_paths[] = $rpath;
 			}
 		}
@@ -672,7 +692,7 @@ class MiniHTTPD_Server
 			// Find SSL certificate file
 			$cert = MHTTPD::$config['SSL']['cert_file'];
 			if ( !($cert_file = realpath($cert))
-				&& !($cert_file = realpath(INIPATH.$cert))
+				&& !($cert_file = realpath(MHTTPD::getInipath().$cert))
 				) {
 				trigger_error("Cannot find SSL certificate file: {$cert}", E_USER_ERROR);
 			}
