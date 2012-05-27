@@ -191,7 +191,7 @@ class MiniHTTPD_Request extends MHTTPD_Message
 			;
 			
 			// Try to get the filename and any extra path info
-			if (preg_match('|(.*?\.\w+)(/.*)|', $urlPath, $matches)) {
+			if (preg_match('@(.*?\.\w+)(/.*)@', $urlPath, $matches)) {
 				$this->info['filename'] = $matches[1];
 				$this->info['path_info'] = $matches[2];
 			} else {
@@ -253,13 +253,13 @@ class MiniHTTPD_Request extends MHTTPD_Message
 	{
 		if ($this->debug) {cecho("Rewriting URL Path: ({$this->info['url_parsed']['path']} | {$search} -> {$replace} | ");} 
 
-		if (!preg_match("|{$search}|", $this->info['url_parsed']['path'], $matches)) {
+		if (!preg_match("@{$search}@", $this->info['url_parsed']['path'], $matches)) {
 			if ($this->debug) {cecho('nothing replaced)'.PHP_EOL);}
 			return $this;
 		}
 
 		// Rewrite the URL path
-		$url = preg_replace("|{$search}|", $replace, $this->info['url_parsed']['path']);
+		$url = preg_replace("@{$search}@", $replace, $this->info['url_parsed']['path']);
 		$this->info['path_parsed'] = pathinfo($url);
 		$this->info['url_parsed']['path'] = $url;
 		if ($this->debug) {cecho($url.')'.PHP_EOL);}

@@ -50,8 +50,8 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 		// Process each defined rule
 		foreach ($this->rules as $name=>$rule) {
 
-			if (!preg_match("|{$rule['match']}|", $url)
-				|| (isset($rule['exclude']) && preg_match("|{$rule['exclude']}|", $url))
+			if (!preg_match("@{$rule['match']}@", $url)
+				|| (isset($rule['exclude']) && preg_match("@{$rule['exclude']}@", $url))
 				) {
 				continue;
 			}
@@ -89,7 +89,7 @@ class MiniHTTPD_Handler_Rewrite extends MHTTPD_Handler
 			
 			// Rewrite the URL according to the matched rules
 			$rule = $this->rules[$name];
-			$url = preg_replace("|{$rule['match']}|", $rule['replace'], $url,	1);
+			$url = preg_replace("@{$rule['match']}@", $rule['replace'], $url,	1);
 			$url = str_replace('//', '/', $url);
 			$redirect = isset($rule['redirect']) && $rule['redirect'] ? $rule['redirect'] : false;
 
