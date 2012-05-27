@@ -155,6 +155,12 @@ class MiniHTTPD_Client
 	 * @var integer
 	 */
 	protected $numRequests = 1;
+
+	/**
+	 * A temporary count of the request body bytes read by the client.
+	 * @var integer
+	 */
+	protected $bytesRead = 0;
 	
 	/**
 	 * Initalizes the client object.
@@ -354,8 +360,8 @@ class MiniHTTPD_Client
 		// With Content-Length set
 		if (($clen = $request->getContentLength())) {
 
-			// Store the total bytes read locally
-			static $rlen = 0;
+			// Count the total bytes read so far
+			$rlen = $this->bytesRead;
 			
 			// Buffer part of the body content
 			$len = min(($clen - $rlen), $this->requestBufferSize, 8192);
@@ -376,6 +382,7 @@ class MiniHTTPD_Client
 				$this->posting = false;
 				$rlen = 0;
 			}
+			$this->bytesRead = $rlen;
 			
 		// With Transfer-Encoding: chunked
 		} elseif ($request->isChunked()) {

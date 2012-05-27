@@ -75,6 +75,12 @@ class MiniFCGI_Client
 	 * @var integer
 	 */	
 	protected $flushes = 0;
+
+	/**
+	 * A temporary count of the total number of bytes sent by the current client.
+	 * @var integer
+	 */
+	protected $bytesSent = 0;
 	
 	/**
 	 * Creates a new FCGI client, by default bound to a server client.
@@ -286,9 +292,6 @@ class MiniFCGI_Client
 
 		// Send any buffered content via STDIN stream
 		if (isset($request['content']) && $request['content'] != '') {
-		
-			// Store the total content bytes sent locally
-			static $sent = 0;
 			
 			if ($this->debug) {cecho("--> Sending FCGI STDIN ({$request['ID']})\n");}
 			$record->setType(MFCGI::STDIN);
@@ -299,12 +302,12 @@ class MiniFCGI_Client
 			$record->write(); // ends STDIN
 			
 			// Check the total content bytes sent
-			if (($sent += strlen($request['content'])) >= $this->request['clength']) {
+			if (($this->bytesSent += strlen($request['content'])) >= $this->request['clength']) {
 				
 				// Don't send any more content
 				if ($this->debug) {cecho("--> Ending content stream ({$request['ID']})\n");}
 				unset($this->request['content'], $this->request['clength']);
-				$sent = 0;
+				$this->bytesSent = 0;
 			}
 		}
 
