@@ -287,7 +287,7 @@ for ($i = 0; $i < $vcnt; $i ++) {
 	$data['cache_name'] = "var#$i";
 	$data['cacheid'] = $i;
 	$cacheinfos[] = $data;
-	if ($pcnt >= 2) {
+	if ($vcnt >= 2) {
 		calc_total($total, $data);
 	}
 }
@@ -331,14 +331,16 @@ case XC_TYPE_VAR:
 		$inodes = array();
 		$haveinode = false;
 		foreach ($cachelist['cache_list'] as $e) {
-			if (isset($e['inode'])) {
+			if (isset($e['file_inode'])) {
 				$haveinode = true;
+				break;
 			}
 		}
 		if (!$haveinode) {
 			foreach ($cachelist['deleted_list'] as $e) {
-				if (isset($e['inode'])) {
+				if (isset($e['file_inode'])) {
 					$haveinode = true;
+					break;
 				}
 			}
 		}
