@@ -232,9 +232,8 @@ class MiniHTTPD_Message
 			if ($h !== false && strpos($str, 'HTTP/') !== false) {
 				$h = true;
 				
-				// Verify max length
-				$str = trim($str);
-				$str = substr($str, 0, min(strlen($str), MHTTPD_Message::$maxHeaderValueSize));
+				// Verify max status line length
+				$str = substr(trim($str), 0, MHTTPD_Message::$maxHeaderValueSize);
 				
 				if ($this instanceof MHTTPD_Response) {
 					
@@ -265,9 +264,8 @@ class MiniHTTPD_Message
 				if ($lowercase) {$headername = strtolower($headername);}
 
 				// Verify header lengths
-				$headervalue = ltrim($headervalue);
-				$headervalue = substr($headervalue, 0, min(strlen($headervalue), MHTTPD_Message::$maxHeaderValueSize));
-				$headername  = substr($headername, 0, min(strlen($headername), MHTTPD_Message::$maxHeaderNameSize));
+				$headervalue = substr(ltrim($headervalue), 0, MHTTPD_Message::$maxHeaderValueSize);
+				$headername  = substr($headername, 0, MHTTPD_Message::$maxHeaderNameSize);
 				
 				if ($headername == 'Status' && ($this instanceof MHTTPD_Response)) {
 					
@@ -293,7 +291,7 @@ class MiniHTTPD_Message
 				$hlen = $this->getHeaderSize($headername);
 				if ($hlen < MHTTPD_Message::$maxHeaderValueSize) {
 					$val = ' '.trim($str);
-					$val = substr($val, 0, min(strlen($val), MHTTPD_Message::$maxHeaderValueSize - $hlen));
+					$val = substr($val, 0, MHTTPD_Message::$maxHeaderValueSize - $hlen);
 					if (is_array($this->headers[$headername])) {
 						$last = count($this->headers[$headername]) - 1;
 						$this->headers[$headername][$last] .= $val;
@@ -331,7 +329,7 @@ class MiniHTTPD_Message
 	public function addHeader($name, $value, $combine=true)
 	{
 		// Verify the header name
-		$name = substr($name, 0, min(strlen($name), MHTTPD_Message::$maxHeaderNameSize));
+		$name = substr($name, 0, MHTTPD_Message::$maxHeaderNameSize);
 		
 		if ($combine && isset($this->headers[$name]) && !is_array($this->headers[$name])) {
 			
@@ -342,7 +340,7 @@ class MiniHTTPD_Message
 				$hlen = $this->getHeaderSize($name);
 				if ($hlen < MHTTPD_Message::$maxHeaderValueSize) {
 					$value = ', '.$value;
-					if (($vlen = min(strlen($value), MHTTPD_Message::$maxHeaderValueSize - $hlen)) > 2) {
+					if (($vlen = MHTTPD_Message::$maxHeaderValueSize - $hlen) > 2) {
 						$this->headers[$name] .= substr($value, 0, $vlen);
 					}
 				}
@@ -363,14 +361,14 @@ class MiniHTTPD_Message
 			if (!$this->hasMaxHeaders() && !in_array($value, $this->headers[$name])) {
 				$hlen = $this->getHeaderSize($name);
 				if ($hlen < MHTTPD_Message::$maxHeaderValueSize) {
-					$this->headers[$name][] = substr($value, 0, min(strlen($value), MHTTPD_Message::$maxHeaderValueSize - $hlen));
+					$this->headers[$name][] = substr($value, 0, MHTTPD_Message::$maxHeaderValueSize - $hlen);
 				}
 			}
 		
 		} elseif (!$this->hasMaxHeaders()) {
 		
 			// Set the single header value string
-			$this->headers[$name] = substr($value, 0, min(strlen($value), MHTTPD_Message::$maxHeaderValueSize));
+			$this->headers[$name] = substr($value, 0, MHTTPD_Message::$maxHeaderValueSize);
 		}
 
 		return $this;
